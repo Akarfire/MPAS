@@ -65,11 +65,6 @@ void UMPAS_Limb::InitLimb()
 
         if (Fetch_MeshComponent)
         {
-            // Caching data if MergeSettingsWithCustomChain is enabled
-            TArray<FMPAS_LimbSegmentData> CachedSegmentData;
-            if (MergeSettingsWithCustomChain)
-                CachedSegmentData = Segments;
-
             // Cleaning current data
             Segments.Empty();
             CurrentState.Empty();
@@ -101,13 +96,6 @@ void UMPAS_Limb::InitLimb()
                 NewSegment.Length = (NewState.Position - Fetch_MeshComponent->GetBoneLocation(ReversedBoneChain[i - 1])).Size();
                 
                 MaxExtent += NewSegment.Length;
-
-                // Merging settings with cached data if enabled
-                if (MergeSettingsWithCustomChain && CachedSegmentData.IsValidIndex(i))
-                {
-                    NewSegment.AngularLimits = CachedSegmentData[i].AngularLimits;
-                    NewSegment.PhysicsMeshExtent = CachedSegmentData[i].PhysicsMeshExtent;
-                }
                 
                 Segments.Add(NewSegment);
                 CurrentState.Add(NewState);
@@ -155,6 +143,14 @@ void UMPAS_Limb::GeneratePhysicsModelConfiguration()
 
         PhysicsElementsConfiguration.Empty();
 
+        // Merging segment data with additional data
+        if (AdditionalSegmentData.Num() > 0)
+            for (int i = 0; i < Segments.Num(); i++)
+            {
+                Segments[i].AngularLimits = AdditionalSegmentData[UKismetMathLibrary::Clamp(i, 0, AdditionalSegmentData.Num() - 1)].AngularLimits;
+                Segments[i].PhysicsMeshExtent = AdditionalSegmentData[UKismetMathLibrary::Clamp(i, 0, AdditionalSegmentData.Num() - 1)].PhysicsMeshExtent;
+            }
+
         for (int i = 0; i < Segments.Num(); i++)
         {
             FMPAS_PhysicsElementConfiguration NewConfig;
@@ -168,8 +164,9 @@ void UMPAS_Limb::GeneratePhysicsModelConfiguration()
             NewConfig.Mass = LimbMass * LimbMassDistribution[i];
             NewConfig.AirDrag = AirDrag;
             
-            NewConfig.ParentPhysicalAttachmentType = EMPAS_PhysicsModelAttachmentType::LimitedPositionRotation;
-            NewConfig.PhysicsConstraintLimits = FVector(5, 5, 5);
+            NewConfig.ParentPhysicalAttachmentType = SegmentParentPhysicalAttachmentType;
+
+            NewConfig.PhysicsConstraintLimits = FVector(PositionDrift, PositionDrift, PositionDrift);
             if (Segments[i].AngularLimits != FRotator(0, 0, 0))
                 NewConfig.PhysicsAngularLimits = Segments[i].AngularLimits;
 

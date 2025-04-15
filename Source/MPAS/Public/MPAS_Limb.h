@@ -32,6 +32,27 @@ struct FMPAS_LimbSegmentData
 	FMPAS_LimbSegmentData(): Length(0), AngularLimits(FRotator(0, 0, 0)), BoneName(FName()), PhysicsMeshExtent(FVector2D(1, 1)) {} 
 };
 
+/*
+ * Defines AngularLimits and PhysicsMeshExtent for a single segment in UMPAS_Limb
+ * Needed to configure FetchFromMesh mode of the limb, as these parameters are impossible to extract from a mesh
+ */
+USTRUCT(BlueprintType)
+struct FMPAS_AdditionalLimbSegmentData
+{
+	GENERATED_USTRUCT_BODY()
+
+	// Rotational limits for each rotation axis
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FRotator AngularLimits;
+
+	// NON-Length plane extent of the physics mesh of this segment
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FVector2D PhysicsMeshExtent;
+
+	FMPAS_AdditionalLimbSegmentData(): AngularLimits(FRotator(90, 90, 90)), PhysicsMeshExtent(FVector2D(1, 1)) {} 
+};
+
+
 
 // Contains the state of a single limb segment
 USTRUCT(BlueprintType)
@@ -194,12 +215,15 @@ public:
 	bool Fetch_OriginPosition = true;
 
 	/*
-	 * If enabled, settings described in CustomChain Segments will be merged with data fetched from the mesh
-	 * Should be used to setup PhysicsMeshExtent and AngularLimits
+	 * Defines AngularLimits and PhysicsMeshExtent for each single segment in UMPAS_Limb
+	 * If not enough entries are specified, extra segments will use the last entry
+	 * If no entries are specified, segments will default to values:
+	 * 			-  AngularLimits = FRotator(90, 90, 90);
+	 * 			-  PhysicsMeshExtent =FVector2D(1, 1);
 	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|Limb|FetchFromMesh")
-	bool MergeSettingsWithCustomChain = false;
-	
+	TArray<FMPAS_AdditionalLimbSegmentData> AdditionalSegmentData;
+
 
 	// An array of all limb segments, the order of the elements defines the order of segments in the limb
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|Limb|CustomChain")
@@ -219,6 +243,14 @@ public:
 	// Air drag that is going to be applied to each segment
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="PhysicsModel|Limb|AutoGeneration")
 	float AirDrag = 1.f;
+
+	// How far can physics elements go from their original location
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="PhysicsModel|Limb|AutoGeneration")
+	float PositionDrift = 10.f;
+
+	// The type of the element's physical attachment to its parent, determines the generation process and the behavior of the Physics Model
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="PhysicsModel|Limb|AutoGeneration")
+	EMPAS_PhysicsModelAttachmentType SegmentParentPhysicalAttachmentType = EMPAS_PhysicsModelAttachmentType::LimitedPosition;
 
 	// Physics element class that is going to be instantiated for every limb segment
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="PhysicsModel|Limb|AutoGeneration")

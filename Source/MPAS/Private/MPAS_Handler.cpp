@@ -7,6 +7,7 @@
 #include "MPAS_VisualRigElement.h"
 #include "Kismet/GameplayStatics.h"
 #include "PhysicsEngine/PhysicsConstraintComponent.h"
+#include "PhysicsEngine/ConstraintInstanceBlueprintLibrary.h"
 
 
 // Sets default values for this component's properties
@@ -330,9 +331,19 @@ void UMPAS_Handler::GeneratePhysicsElement(FName InRigElementName)
 					GetOwner()->AddInstanceComponent(PhysicsConstraintComponent);
 
 					PhysicsConstraintComponent->SetDisableCollision(PhysicsElementConfig.DisableCollisionWithParent);
+					//PhysicsConstraintComponent->SetAngularDriveParams(PhysicsElementConfig.ConstraintAngularPositionStrength, PhysicsElementConfig.ConstraintAngularVelocityStrength, PhysicsElementConfig.ConstraintAngularMaxForce);
+					//PhysicsConstraintComponent->SetLinearDriveParams(PhysicsElementConfig.ConstraintLinearPositionStrength, PhysicsElementConfig.ConstraintLinearVelocityStrength, PhysicsElementConfig.ConstraintLinearMaxForce);
+
+						/*
+						// This was an experiment to enable parent dominates
+						// It failed because physics elemetns are not in any heirarchichal relationship engine-wise (they are not attached to each other)
+
+						FConstraintInstanceAccessor ConstraintAccessor = PhysicsConstraintComponent->GetConstraint();
+						UConstraintInstanceBlueprintLibrary::SetParentDominates(ConstraintAccessor, true);
+						ConstraintAccessor.Modify();
+						*/
 
 					// Constraint Component attachement
-
 					UPrimitiveComponent* ParentElement = nullptr;
 
 					if (PhysicsElementConfig.ParentType == EMPAS_PhysicsModelParentType::ChainedPhysicsElement && AllPhysicsElements.IsValidIndex(PhysicsElementConfig.ParentPhysicsElementID))
