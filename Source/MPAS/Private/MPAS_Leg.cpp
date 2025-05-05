@@ -18,8 +18,6 @@ UMPAS_Leg::UMPAS_Leg()
 void UMPAS_Leg::InitRigElement(UMPAS_Handler* InHandler)
 {
 	Super::InitRigElement(InHandler);
-	
-	LegTargetOffset = GetComponentLocation() - InHandler->GetCore()->GetComponentLocation();
 
 	StepTimelineName = FName("LegStepTimeline_" + RigElementName.ToString());
 	InHandler->CreateTimeline(StepTimelineName, StepAnimationDuration, false, false);
@@ -81,6 +79,9 @@ void UMPAS_Leg::LinkRigElement(class UMPAS_Handler* InHandler)
 {
 	Super::LinkRigElement(InHandler);
 
+	// Fetching leg target offset
+	LegTargetOffset = GetComponentLocation() - ParentElement->GetComponentLocation();
+
 	// Registers the effector layer
 	LegEffectorLayerID = ParentElement->RegisterPositionLayer(0, "LegsPositionEffector", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Average);
 
@@ -113,6 +114,8 @@ void UMPAS_Leg::UpdateRigElement(float DeltaTime)
 
 	if (!GetPhysicsModelEnabled())
 	{
+		// Actual leg update
+
 		if (!IsMoving && !IsReadyToStep())
 			ReadyToStep = ShouldStep();
 
@@ -159,7 +162,8 @@ void UMPAS_Leg::UpdateRigElement(float DeltaTime)
 // Returns leg's target position
 FVector UMPAS_Leg::GetTargetPosition()
 {
-	return (ParentElement->GetComponentRotation().RotateVector(LegTargetOffset) + GetHandler()->GetCore()->GetComponentLocation());
+	// (ParentElement->GetComponentRotation().RotateVector(LegTargetOffset) + ParentElement->GetComponentLocation())
+	return LegTargetLocation;
 }
 
 

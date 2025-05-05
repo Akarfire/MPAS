@@ -31,7 +31,7 @@ protected:
 	// Wether the leg has moved in current window (the time frame between CurrentLegGroup value changes)
 	bool HasMovedInCurrentWindow;
 
-	// Leg's target position relative to the core
+	// Leg's target position relative to the the parent element
 	FVector LegTargetOffset;
 
 	// Leg's default position relative to the parent element
@@ -55,6 +55,12 @@ protected:
 public:
 	UMPAS_Leg();
 	
+
+	// INTENTION DRIVEN - parameter, that determines the location, where the leg is intended to be placed
+	UPROPERTY(BlueprintReadWrite, Category="FootPlacement")
+	FVector LegTargetLocation;
+
+
 	// Foot bone name
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default")
 	FName FootBone;

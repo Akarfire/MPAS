@@ -349,6 +349,7 @@ protected:
 	// Handles interpolation of the current state to the target state
 	void InterpolateLimb(float DeltaTime);
 
+	
 	// Algorithms
 	// 'static' because they are going to run in a background thread
 
