@@ -34,3 +34,16 @@ void UMPAS_BodySegment::UpdateRigElement(float DeltaTime)
         SetRotationSourceValue(0, 1, this, NewRotation);
     }
 }
+
+
+// Returns the location, where the body needs to be placed
+FVector UMPAS_BodySegment::GetDesiredLocation()
+{
+    return GetHandler()->GetCore()->GetComponentLocation();
+}
+
+// Returns the rotation, by which the body needs to be rotated
+FRotator UMPAS_BodySegment::GetDesiredRotation()
+{
+    return GetHandler()->GetCore()->GetComponentRotation();
+}

@@ -189,8 +189,8 @@ void UMPAS_RigElement::ApplyDefaultPositionStack(float DeltaTime)
 	FVector StackValue = CalculatePositionStackValue(0);
 
 	FVector NewLocation = StackValue;
-	if (PositionInterpolationSpeed != 0)
-		NewLocation = UKismetMathLibrary::VInterpTo(GetComponentLocation(), StackValue, DeltaTime, PositionInterpolationSpeed * PositionInterpolationMultiplier);
+	if (LocationInterpolationSpeed != 0)
+		NewLocation = UKismetMathLibrary::VInterpTo(GetComponentLocation(), StackValue, DeltaTime, LocationInterpolationSpeed * PositionInterpolationMultiplier);
 
 	SetWorldLocation(NewLocation);
 }
@@ -200,7 +200,7 @@ FVector UMPAS_RigElement::CalculatePositionStackValue(int32 InPositionStackID)
 {
 	FVector FinalPosition;
 
-	for (auto& Layer : PositionStacks[InPositionStackID])
+	for (auto& Layer : LocationStacks[InPositionStackID])
 	{
 		FVector LayerValue = CalculatePositionLayerValue(Layer);
 
@@ -295,16 +295,16 @@ FVector UMPAS_RigElement::CalculatePositionLayerValue(const FMPAS_VectorLayer In
 // Registers a new position stack and returns it's ID, returns an existing ID if the stack is already registered
 int32 UMPAS_RigElement::RegisterPositionStack(const FString& InStackName)
 {
-	if (PositionStackNames.Contains(InStackName))
-		return PositionStackNames[InStackName];
+	if (LocationStackNames.Contains(InStackName))
+		return LocationStackNames[InStackName];
 
 	TArray<FMPAS_VectorLayer> NewStack;
 
-	int32 StackID = PositionStacks.Add(NewStack);
-	PositionStackNames.Add(InStackName, StackID);
+	int32 StackID = LocationStacks.Add(NewStack);
+	LocationStackNames.Add(InStackName, StackID);
 
 	TMap<FString, int32> NewStackLayerNames;
-	PositionLayerNames.Add(NewStackLayerNames);
+	LocationLayerNames.Add(NewStackLayerNames);
 
 	return StackID;
 }
@@ -312,16 +312,16 @@ int32 UMPAS_RigElement::RegisterPositionStack(const FString& InStackName)
 // Registers a new position layer in the given stack and returns it's ID, returns an existing ID if the layer is already registered, returns -1 if Stack does not exist
 int32 UMPAS_RigElement::RegisterPositionLayer(int32 InPositionStackID, const FString& InLayerName, EMPAS_LayerBlendingMode InBlendingMode, EMPAS_LayerCombinationMode InCombinationMode, bool InForceAllElementsActive)
 {
-	if (InPositionStackID < 0 || InPositionStackID >= PositionStacks.Num())
+	if (InPositionStackID < 0 || InPositionStackID >= LocationStacks.Num())
 		return -1;
 
-	if (PositionLayerNames[InPositionStackID].Contains(InLayerName))
-		return PositionLayerNames[InPositionStackID][InLayerName];
+	if (LocationLayerNames[InPositionStackID].Contains(InLayerName))
+		return LocationLayerNames[InPositionStackID][InLayerName];
 
 	FMPAS_VectorLayer NewLayer(InBlendingMode, InCombinationMode, InForceAllElementsActive);
 
-	int32 LayerID = PositionStacks[InPositionStackID].Add(NewLayer);
-	PositionLayerNames[InPositionStackID].Add(InLayerName, LayerID);
+	int32 LayerID = LocationStacks[InPositionStackID].Add(NewLayer);
+	LocationLayerNames[InPositionStackID].Add(InLayerName, LayerID);
 
 	return LayerID;
 }
@@ -330,22 +330,22 @@ int32 UMPAS_RigElement::RegisterPositionLayer(int32 InPositionStackID, const FSt
 // Returns the ID of the given stack, -1 if stack not found
 int32 UMPAS_RigElement::GetPositionStackID(const FString& InStackName)
 {
-	if (!PositionStackNames.Contains(InStackName))
+	if (!LocationStackNames.Contains(InStackName))
 		return -1;
 
-	return PositionStackNames[InStackName];
+	return LocationStackNames[InStackName];
 }
 
 // Returns the ID of the given layer in the given stack, -1 if stack or layer not found
 int32 UMPAS_RigElement::GetPositionLayerID(int32 InPositionStackID, const FString& InLayerName)
 {
-	if (InPositionStackID < 0 || InPositionStackID >= PositionStacks.Num())
+	if (InPositionStackID < 0 || InPositionStackID >= LocationStacks.Num())
 		return -1;
 
-	if (!PositionLayerNames[InPositionStackID].Contains(InLayerName))
+	if (!LocationLayerNames[InPositionStackID].Contains(InLayerName))
 		return -1;
 
-	return PositionLayerNames[InPositionStackID][InLayerName];
+	return LocationLayerNames[InPositionStackID][InLayerName];
 }
 
 
@@ -353,13 +353,13 @@ int32 UMPAS_RigElement::GetPositionLayerID(int32 InPositionStackID, const FStrin
 // Sets the value of a position source in the given Stack and Layer, if succeded: returns true, false - overwise
 bool UMPAS_RigElement::SetPositionSourceValue(int32 InPositionStackID, int32 InPositionLayerID, UMPAS_RigElement* InSourceElement, FVector InSourceValue)
 {
-	if (InPositionStackID < 0 || InPositionStackID >= PositionStacks.Num())
+	if (InPositionStackID < 0 || InPositionStackID >= LocationStacks.Num())
 		return false;
 
-	if (InPositionLayerID < 0 || InPositionLayerID >= PositionStacks[InPositionStackID].Num())
+	if (InPositionLayerID < 0 || InPositionLayerID >= LocationStacks[InPositionStackID].Num())
 		return false;
 
-	PositionStacks[InPositionStackID][InPositionLayerID].LayerElements.Add(InSourceElement, InSourceValue);
+	LocationStacks[InPositionStackID][InPositionLayerID].LayerElements.Add(InSourceElement, InSourceValue);
 	return true;
 }
 
@@ -367,13 +367,13 @@ bool UMPAS_RigElement::SetPositionSourceValue(int32 InPositionStackID, int32 InP
 // Removes the value of a position source in the given Stack and Layer, if succeded: returns true, false - overwise
 bool UMPAS_RigElement::RemovePositionSourceValue(int32 InPositionStackID, int32 InPositionLayerID, UMPAS_RigElement* InSourceElement)
 {
-	if (InPositionStackID < 0 || InPositionStackID >= PositionStacks.Num())
+	if (InPositionStackID < 0 || InPositionStackID >= LocationStacks.Num())
 		return false;
 
-	if (InPositionLayerID < 0 || InPositionLayerID >= PositionStacks[InPositionStackID].Num())
+	if (InPositionLayerID < 0 || InPositionLayerID >= LocationStacks[InPositionStackID].Num())
 		return false;
 
-	return PositionStacks[InPositionStackID][InPositionLayerID].LayerElements.Remove(InSourceElement) > 0;
+	return LocationStacks[InPositionStackID][InPositionLayerID].LayerElements.Remove(InSourceElement) > 0;
 }
 
 

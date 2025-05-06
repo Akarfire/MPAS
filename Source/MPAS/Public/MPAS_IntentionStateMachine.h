@@ -27,6 +27,12 @@ protected:
 
 public:
 
+	// CALLED BY THE HANDLER: Called once the rig has finished it's Scanning, Initing and Linking processes
+	UFUNCTION(BlueprintNativeEvent, Category = "MPAS|Handler|IntentionDriver|IntentionStateMachine")
+	void OnRigSetupFinished();
+	virtual void OnRigSetupFinished_Implementation() {}
+
+
 	// Returns the pointer to the associated MPAS handler
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|IntentionDriver|IntentionStateMachine")
 	class UMPAS_Handler* GetHandler() { return Handler; }

@@ -34,4 +34,14 @@ public:
 
 	// CALLED BY THE HANDLER :  Updating Rig Element every tick
 	virtual void UpdateRigElement(float DeltaTime) override;
+
+
+	// Returns the location, where the body needs to be placed
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|BodySegment")
+	FVector GetDesiredLocation();
+
+	// Returns the rotation, by which the body needs to be rotated
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|BodySegment")
+	FRotator GetDesiredRotation();
+
 };

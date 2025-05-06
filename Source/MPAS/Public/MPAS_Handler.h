@@ -142,7 +142,7 @@ struct FMPAS_PropogationSettings
 };
 
 
-
+// --------------------------------------------------
 // HANDLER
 
 UCLASS(Blueprintable, ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
@@ -160,6 +160,9 @@ protected:
 
 	// List of all core elements in the rig
 	TArray<FName> CoreElements;
+
+	// Whether rig setup process has been completed
+	bool SetupComplete = false;
 
 public:	
 	// Sets default values for this component's properties
@@ -181,6 +184,9 @@ protected:
 
 	// Links all elements in RigData
 	void LinkRig();
+
+	// Calls OnRigSetupFinished on all Intention Drivers
+	void OnRigSetupComplete();
 
 	// Updates all elements in RigData
 	void UpdateRig(float DeltaTime);
@@ -266,6 +272,10 @@ public:
 	// Adds a Intention State Machine to the Intention Driver
 	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|IntentionDriver")
 	bool AddIntentionStateMachine(TSubclassOf<UMPAS_IntentionStateMachine> InStateMachineClass, FName InStateMachineName);
+
+	// Returns a pointer to the requested Intention Driver, returns nullptr if failed to find
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|IntentionDriver")
+	UMPAS_IntentionStateMachine* GetIntentionDriver(FName InStateMachineName);
 
 	// Activates / Deactivates selected Intention State Machine
 	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|IntentionDriver")

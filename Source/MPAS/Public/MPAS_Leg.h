@@ -48,7 +48,6 @@ protected:
 	
 	float StepLengthMultiplier = 1.f;
 	float StepTriggerDistanceMultiplier = 1.f;
-	float ParentElevationMultiplier = 1.f;
 	float AnimationSpeedMultiplier = 1.f;
 	float SpeedMultiplier = 1.f;
 
@@ -103,10 +102,20 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|Step")
 	class UCurveFloat* StepHeightScalingCurve = nullptr;
 
-	// Effector positioning
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|ParentPlacement")
-	float ParentVerticalOffset;
+
+	// Effector location shift
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="Default|ParentPlacement")
+	FVector EffectorShift;
+
+	// Effector location shift minimal limitation
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Default|ParentPlacement")
+	FVector EffectorShift_Min = FVector(-100, -100, -50);
+
+	// Effector location shift maximal limitation
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Default|ParentPlacement")
+	FVector EffectorShift_Max = FVector(100, 100, 200);
 	
+
 	// Leg's offset in inactive mode, relative to parent
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|Stability")
 	FVector InactiveOffset = FVector();
@@ -119,9 +128,6 @@ protected:
 	// Returns leg's target position
 	FVector GetTargetPosition();
 
-	// Casts a trace that finds a suitable foot position, (0, 0, 0) if failed
-	FVector FootTrace(const FVector& StepTargetPosition);
-
 	// Checks whether the leg should make a step
 	bool ShouldStep();
 
@@ -130,6 +136,14 @@ protected:
 
 
 public:
+
+	// Casts a trace that finds a suitable foot position, (0, 0, 0) if failed
+	UFUNCTION(BlueprintCallable)
+	FVector FootTrace(const FVector& StepTargetPosition);
+
+	// Returns initial leg's location relative to it's parent element
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	FVector GetLegTargetOffset() { return LegTargetOffset; }
 
 	// Whether the leg is ready to make a step
 	UFUNCTION(BlueprintCallable, BlueprintPure)

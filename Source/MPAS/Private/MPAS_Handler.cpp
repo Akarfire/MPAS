@@ -38,6 +38,10 @@ void UMPAS_Handler::BeginPlay()
 	// Lings rig after initializing
 	LinkRig();
 	
+	SetupComplete = true;
+
+	// Finish Intention driver setup
+	OnRigSetupComplete();
 }
 
 
@@ -149,6 +153,13 @@ void UMPAS_Handler::LinkRig()
 		RigElement.Value.RigElement->LinkRigElement(this);
 }
 
+// Calls OnRigSetupFinished on all Intention Drivers
+void UMPAS_Handler::OnRigSetupComplete()
+{
+	for (auto& IntentionDriver : IntentionStateMachines)
+		IntentionDriver.Value->OnRigSetupFinished();
+}
+
 
 // Updates all elements in RigData
 void UMPAS_Handler::UpdateRig(float DeltaTime)
@@ -241,7 +252,20 @@ bool UMPAS_Handler::AddIntentionStateMachine(TSubclassOf<UMPAS_IntentionStateMac
 	
 	IntentionStateMachines.Add(InStateMachineName, NewStateMachine);
 
+	// Calling OnRigSetupFinished on new intention drivers if the setup has been completed before they were added
+	if (SetupComplete) NewStateMachine->OnRigSetupFinished();
+
 	return true;
+}
+
+// Returns a pointer to the requested Intention Driver, returns nullptr if failed to find
+UMPAS_IntentionStateMachine* UMPAS_Handler::GetIntentionDriver(FName InStateMachineName)
+{
+	auto IntentionDriver = IntentionStateMachines.Find(InStateMachineName);
+
+	if (!IntentionDriver) return nullptr;
+
+	return *IntentionDriver;
 }
 
 // Activates / Deactivates selected Intention State Machine

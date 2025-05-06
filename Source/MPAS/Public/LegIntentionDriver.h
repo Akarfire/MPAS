@@ -12,27 +12,36 @@
  * The only state of this intention dirver
  */
 UCLASS()
-class SCARLETSTATEMACHINES_API UMPAS_LegIntentionDriverState : public UMPAS_IntentionStateBase
+class MPAS_API UMPAS_LegIntentionDriverState : public UMPAS_IntentionStateBase
 {
 	GENERATED_BODY()
 	
 	// Body segments and legs corresponding to them
-	TMap<UMPAS_BodySegment*, TArray<UMPAS_Leg*>> LegsData;
+	TMap<class UMPAS_BodySegment*, TArray <class UMPAS_Leg* >> LegsData;
 
 
 public:
 
 	// Constructor
-	USSM_CodeExampleStateThree() {}
+	UMPAS_LegIntentionDriverState() {}
 
 	// Called when the state is made active
 	virtual void EnterState_Implementation() override;
-
+	
 	// Called once the active state is changed to a different one
 	virtual void ExitState_Implementation() override;
 
 	// Called every state machine update when the state is active
 	virtual void UpdateState_Implementation(float DeltaTime) override;
+
+
+protected:
+
+	/*
+	* Finds a sutable location to place the leg, approaching DesiredPlacementLocation as closely as possible
+	* Returns FVector(0) if no suitable location was found
+	*/
+	FVector PlaceLegTargetLocation(const FVector& DesiredPlacementLocation);
 };
 
 
@@ -54,11 +63,16 @@ public:
 	{
 		// Registering State
 		AddNewState( 1, UMPAS_LegIntentionDriverState::StaticClass() );
+	}
 
-		// Set Default State
+	// CALLED BY THE HANDLER: Called once the rig has finished it's Scanning, Initing and Linking processes
+	virtual void OnRigSetupFinished_Implementation() override
+	{
+		// Setting State
+		// Doing it here, because the rig needs to already be prossed by the time the State is entered 
 		ForceCallStateTransition(1);
 	}
 
 	// Called every time the state machine is updated (after the main update)
-	virtual void OnUpdateStateMachine_Implementation(float DeltaTime) override {}
+	virtual void OnUpdateStateMachine_Implementation(float DeltaTime) override  {}
 };

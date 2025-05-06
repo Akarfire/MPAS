@@ -232,7 +232,7 @@ public:
 
 	// Smooths out position changes, if set to 0, no interpolation is applied
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Orientation")
-	float PositionInterpolationSpeed = 0.f;
+	float LocationInterpolationSpeed = 0.f;
 
 	// Smooths out rotation changes, if set to 0, no interpolation is applied
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Orientation")
@@ -271,11 +271,11 @@ public:
 protected:
 
 	// Stacks by layers of which the position of the element is determined
-	TArray<TArray<FMPAS_VectorLayer>> PositionStacks;
+	TArray<TArray<FMPAS_VectorLayer>> LocationStacks;
 
 	// Name maps used to access Stacks and Layers by name (slower than ID)
-	TMap<FString, int32> PositionStackNames;
-	TArray<TMap<FString, int32>> PositionLayerNames;
+	TMap<FString, int32> LocationStackNames;
+	TArray<TMap<FString, int32>> LocationLayerNames;
 
 
 protected:
@@ -321,7 +321,7 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|PositionStacks")
 	FVector GetPositionSourceValue(int32 InPositionStackID, int32 InPositionLayerID, UMPAS_RigElement* InSourceElement)
 	{
-		return PositionStacks[InPositionStackID][InPositionLayerID].LayerElements[InSourceElement];
+		return LocationStacks[InPositionStackID][InPositionLayerID].LayerElements[InSourceElement];
 	}
 
 
@@ -557,13 +557,13 @@ public:
 public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|PositionStacks")
-	const TMap<FString, int32>& GetPositionStackNames() { return PositionStackNames; }
+	const TMap<FString, int32>& GetPositionStackNames() { return LocationStackNames; }
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|PositionStacks")
-	const TMap<FString, int32>& GetPositionLayerNames(int32 InPositionStackID) { return PositionLayerNames[InPositionStackID]; }
+	const TMap<FString, int32>& GetPositionLayerNames(int32 InPositionStackID) { return LocationLayerNames[InPositionStackID]; }
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|PositionStacks")
-	const FMPAS_VectorLayer& GetPositionLayer(int32 InPositionStackID, int32 InPositionLayerID) { return PositionStacks[InPositionStackID][InPositionLayerID]; }
+	const FMPAS_VectorLayer& GetPositionLayer(int32 InPositionStackID, int32 InPositionLayerID) { return LocationStacks[InPositionStackID][InPositionLayerID]; }
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|RotationStacks")
 	const TMap<FString, int32>& GetRotationStackNames() { return RotationStackNames; }

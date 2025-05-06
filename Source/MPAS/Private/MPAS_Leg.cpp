@@ -57,8 +57,6 @@ void UMPAS_Leg::InitRigElement(UMPAS_Handler* InHandler)
 	if (!InHandler->IsFloatParameterValid("INTENTION_LEGS_StepTriggerDistanceMultiplier"))
 		GetHandler()->CreateFloatParameter("INTENTION_LEGS_StepTriggerDistanceMultiplier", 1.f);
 
-	if (!InHandler->IsFloatParameterValid("INTENTION_LEGS_ParentElevationMultiplier"))
-		GetHandler()->CreateFloatParameter("INTENTION_LEGS_ParentElevationMultiplier", 1.f);
 
 	if (!InHandler->IsFloatParameterValid("INTENTION_LEGS_AnimationSpeedMultiplier"))
 		GetHandler()->CreateFloatParameter("INTENTION_LEGS_AnimationSpeedMultiplier", 1.f);
@@ -68,7 +66,6 @@ void UMPAS_Leg::InitRigElement(UMPAS_Handler* InHandler)
 
 	GetHandler()->SubscribeToParameter("INTENTION_LEGS_StepLengthMultiplier", this, "OnParameterChanged");
 	GetHandler()->SubscribeToParameter("INTENTION_LEGS_StepTriggerDistanceMultiplier", this, "OnParameterChanged");
-	GetHandler()->SubscribeToParameter("INTENTION_LEGS_ParentElevationMultiplier", this, "OnParameterChanged");
 	GetHandler()->SubscribeToParameter("INTENTION_LEGS_AnimationSpeedMultiplier", this, "OnParameterChanged");
 	GetHandler()->SubscribeToParameter("INTENTION_LEGS_SpeedMultiplier", this, "OnParameterChanged");
 }
@@ -131,7 +128,7 @@ void UMPAS_Leg::UpdateRigElement(float DeltaTime)
 
 	// If element is active 
 	if (GetRigElementActive())
-		ParentElement->SetPositionSourceValue(0, LegEffectorLayerID, this, GetComponentLocation() + GetUpVector() * ParentVerticalOffset * ParentElevationMultiplier);
+		ParentElement->SetPositionSourceValue(0, LegEffectorLayerID, this, GetComponentLocation() + EffectorShift);
 
 	else if (GetStabilityStatus() == EMPAS_StabilityStatus::Stable)
 	{
@@ -162,7 +159,7 @@ void UMPAS_Leg::UpdateRigElement(float DeltaTime)
 // Returns leg's target position
 FVector UMPAS_Leg::GetTargetPosition()
 {
-	// (ParentElement->GetComponentRotation().RotateVector(LegTargetOffset) + ParentElement->GetComponentLocation())
+	//(ParentElement->GetComponentRotation().RotateVector(LegTargetOffset) + ParentElement->GetComponentLocation())
 	return LegTargetLocation;
 }
 
@@ -171,7 +168,7 @@ FVector UMPAS_Leg::GetTargetPosition()
 FVector UMPAS_Leg::FootTrace(const FVector& StepTargetPosition)
 {
 	FVector StartPosition = StepTargetPosition + GetUpVector() * MaxFootElevation;
-	FVector EndPosition = StartPosition - GetUpVector() * MaxFootVerticalExtent;
+	FVector EndPosition = StepTargetPosition - GetUpVector() * MaxFootVerticalExtent;
 
 	FHitResult Hit;
 	if (GetWorld()->LineTraceSingleByChannel(Hit, StartPosition, EndPosition, ECC_Visibility))
@@ -214,9 +211,6 @@ void UMPAS_Leg::OnParameterChanged(FName InParameterName)
 	else if (InParameterName == "INTENTION_LEGS_StepTriggerDistanceMultiplier")
 		StepTriggerDistanceMultiplier = GetHandler()->GetFloatParameter(InParameterName);
 
-	else if (InParameterName == "INTENTION_LEGS_ParentElevationMultiplier")
-		ParentElevationMultiplier = GetHandler()->GetFloatParameter(InParameterName);
-
 	else if (InParameterName == "INTENTION_LEGS_AnimationSpeedMultiplier")
 		AnimationSpeedMultiplier = GetHandler()->GetFloatParameter(InParameterName);
 
@@ -241,7 +235,7 @@ void UMPAS_Leg::StartStepAnimation()
 	float MaxStepLength = StepLength * StepLengthMultiplier * SpeedMultiplier;
 
 	FVector AdjustedFootTraceLocation = StepDirection * FMath::Min(StepVector.Size(), MaxStepLength) + GetComponentLocation();
-	StepAnimationTargetLocation = FootTrace(AdjustedFootTraceLocation + MaxFootElevation * GetUpVector());
+	StepAnimationTargetLocation = FootTrace(AdjustedFootTraceLocation);
 
 	StepDistance = FVector::Distance(StepAnimationStartLocation, StepAnimationTargetLocation);
 
