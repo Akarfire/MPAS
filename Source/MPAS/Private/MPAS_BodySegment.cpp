@@ -1,8 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include "MPAS_BodySegment.h"
+#include "Default/RigElements/MPAS_BodySegment.h"
 #include "MPAS_Handler.h"
-#include "MPAS_Core.h"
+#include "Default/MPAS_Core.h"
 #include "Kismet/KismetMathLibrary.h"
 
 

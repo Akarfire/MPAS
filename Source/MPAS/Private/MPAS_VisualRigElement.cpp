@@ -1,5 +1,5 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "MPAS_VisualRigElement.h"
+#include "Default/RigElements/MPAS_VisualRigElement.h"
 

@@ -17,7 +17,7 @@ public class MPAS : ModuleRules
 		
 		PrivateIncludePaths.AddRange(
 			new string[] {
-				// ... add other private include paths required here ...
+				// ... add other private include paths required here ..
 			}
 			);
 			
@@ -26,7 +26,8 @@ public class MPAS : ModuleRules
 			new string[]
 			{
 				"Core",
-				"ScarletStateMachines"
+				"ScarletStateMachines",
+                "Scarlet_TimersAndTimelines"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);

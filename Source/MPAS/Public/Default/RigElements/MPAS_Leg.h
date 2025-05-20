@@ -37,6 +37,9 @@ protected:
 	// Leg's default position relative to the parent element
 	FVector LegRestingPoseOffset;
 
+	// Effector Shift uses interpolation, THIS is the current value of Effector Shift
+	FVector RealEffectorShift;
+
 	// Step animation
 	bool IsMoving;
 	FVector StepAnimationStartLocation;
@@ -50,6 +53,7 @@ protected:
 	float StepTriggerDistanceMultiplier = 1.f;
 	float AnimationSpeedMultiplier = 1.f;
 	float SpeedMultiplier = 1.f;
+
 
 public:
 	UMPAS_Leg();
@@ -90,6 +94,12 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|Step")
 	float StepAnimationDuration = 1.f;
 
+	// Offset in time from the end of the step animation, when the leg group assumes the step to be finished
+	// Useful for running, where the next group needs to start BEFORE the current one actually finishes
+	// NOTE: only change this in editor, in runtime use a function to change this value!
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Step")
+	float StepFinishTimeOffset = 0.0f;
+
 	// Determines vertical movement of the leg during step animation, must start with 0, peack to 1 and end with 0
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|Step")
 	class UCurveFloat* StepAnimationHeightCurve = nullptr;
@@ -108,12 +118,16 @@ public:
 	FVector EffectorShift;
 
 	// Effector location shift minimal limitation
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Default|ParentPlacement")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|ParentPlacement")
 	FVector EffectorShift_Min = FVector(-100, -100, -50);
 
 	// Effector location shift maximal limitation
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Default|ParentPlacement")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|ParentPlacement")
 	FVector EffectorShift_Max = FVector(100, 100, 200);
+
+	// How fast the leg responds to changes in Effector Shift
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|ParentPlacement")
+	float EffectorShiftInterpolationSpeed = 10.f;
 	
 
 	// Leg's offset in inactive mode, relative to parent
@@ -153,6 +167,11 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure)
 	bool IsLegMoving() { return IsMoving; }
 
+	// Offset in time from the end of the step animation, when the leg group assumes the step to be finished
+	// Useful for running, where the next group needs to start BEFORE the current one actually finishes
+	UFUNCTION(BlueprintCallable)
+	void SetStepFinishTimeOffset(float newOffset);
+
 	// CALLED BY THE HANDLER
 	// Initializing Rig Element
 	virtual void InitRigElement(class UMPAS_Handler* InHandler) override;
@@ -175,6 +194,10 @@ public:
 	// CALLED BY THE HANDLER : NOTIFICATION Called when a subscribed-to timeline is finished
 	UFUNCTION()
 	void OnStepAnimationTimelineFinished(FName InTimelineName);
+
+	// CALLED BY THE HANDLER : NOTIFICATION Called when a subscribed-to timeline is finished
+	UFUNCTION()
+	void OnStepAnimationTimelineNotify(FName InTimelineName, FName InNotifyName);
 
 	// Called when physics model is disabled for this element
 	virtual void OnPhysicsModelDisabled_Implementation() override;

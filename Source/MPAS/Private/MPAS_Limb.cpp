@@ -1,12 +1,11 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "MPAS_Limb.h"
+#include "Default/RigElements/MPAS_Limb.h"
 #include "MPAS_Handler.h"
 #include "Engine/SkeletalMesh.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/KismetStringLibrary.h"
-#include "MPAS_PhysicsModelElement.h"
 #include "PhysicsEngine/PhysicsConstraintComponent.h"
 
 // Constructor

@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "MPAS_IntentionStateMachine.h"
-#include "MPAS_IntentionStateBase.h"
+#include "../../../IntentionDriving/MPAS_IntentionStateMachine.h"
+#include "../../../IntentionDriving/MPAS_IntentionStateBase.h"
 #include "LegIntentionDriver.generated.h"
 
 
@@ -18,7 +18,6 @@ class MPAS_API UMPAS_LegIntentionDriverState : public UMPAS_IntentionStateBase
 	
 	// Body segments and legs corresponding to them
 	TMap<class UMPAS_BodySegment*, TArray <class UMPAS_Leg* >> LegsData;
-
 
 public:
 
@@ -38,10 +37,30 @@ public:
 protected:
 
 	/*
-	* Finds a sutable location to place the leg, approaching DesiredPlacementLocation as closely as possible
-	* Returns FVector(0) if no suitable location was found
-	*/
+	 * Finds a sutable location to place the leg, approaching DesiredPlacementLocation as closely as possible
+	 * Returns FVector(0) if no suitable location was found
+	 */
 	FVector PlaceLegTargetLocation(const FVector& DesiredPlacementLocation);
+
+	/*
+	 * Calculates effector shift for each leg, described by Limitations (Size of Limitations = number of legs that will be processed)
+	 * Puts the result into OutShift (it MUST already have the required size)
+	 */
+	void CalculateEffectorShift(TArray<FVector>& OutShift, 
+								const FVector& InTarget, 
+								const TArray<TPair<FVector, FVector>>& InLimitations);
+
+	/* 
+	 * Clamps effector shift to it's limitations
+	 * OutClamped contains data, whether each individual offset was clamped
+	 */
+	void ClampShift(TArray<FVector>& InOutShift, TArray<bool>& OutClamped, const TArray<TPair<FVector, FVector>>& InLimitations);
+
+	/*
+	 * Redistributes shift from leg's that hit there limitation to the ones that are still capable of moving 
+	 * Updates the values in the InOutShift
+	 */
+	void ShiftRedistributionIteration(TArray<FVector>& InOutShift, const FVector& InTarget, const TArray<bool>& InClamped);
 };
 
 

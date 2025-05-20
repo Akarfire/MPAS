@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
-#include "MPAS_PhysicsModelElement.h"
+#include "MPAS_PhysicsModel.h"
 #include "MPAS_RigElement.generated.h"
 
 
@@ -67,90 +67,6 @@ struct FMPAS_RotatorLayer
 	bool ForceAllElementsActive;
 
 	FMPAS_RotatorLayer(EMPAS_LayerBlendingMode InBlendingMode = EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode InLayerCombinationMode = EMPAS_LayerCombinationMode::Add, bool InForceAllElementsActive = false): BlendingMode(InBlendingMode), CombinationMode(InLayerCombinationMode), ForceAllElementsActive(InForceAllElementsActive) {}
-};
-
-
-// Type of physics element's attachement
-UENUM(BlueprintType)
-enum class EMPAS_PhysicsModelParentType : uint8
-{
-	// Physics element will be directly attached to the rig element
-	RigElement UMETA(DisplayName="Rig Element"),
-
-	// Physics element will be attached to another physics element, associated with this rig element, use ParentPhsicsElementID to specify parent physics element
-	ChainedPhysicsElement UMETA(DisplayName="Chained Physics Element")
-};
-
-USTRUCT(BlueprintType)
-struct FMPAS_PhysicsElementConfiguration
-{
-	GENERATED_USTRUCT_BODY()
-
-	// Class of the Physics Model Element generated for this element
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PhysicsModel")
-	TSubclassOf<UMPAS_PhysicsModelElement> PhysicsElementClass = UMPAS_PhysicsModelElement::StaticClass();
-
-	// Type of physics element's attachement
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PhysicsModel")
-	EMPAS_PhysicsModelParentType ParentType;
-
-	/*
-	 * USED IF ParentType is set to ChainedPhysicsElement : specifies what physics element (associated with this rig element) is going to be the parent of this physics element
-	 * NOTE: ParentPhysicsElementID must be SMALLER then the index of the this physics element configuration, WILL BE IGNORE OTHERWISE!
-	 */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PhysicsModel")
-	int32 ParentPhysicsElementID = -1;
-
-	// The type of the element's physical attachment to its parent, determines the generation process and the behavior of the Physics Model
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PhysicsModel")
-	EMPAS_PhysicsModelAttachmentType ParentPhysicalAttachmentType = EMPAS_PhysicsModelAttachmentType::Hard;
-
-	// Disables collision of the physics element with it's parent, can fix some weird behavior
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PhysicsModel")
-	bool DisableCollisionWithParent = false;
-
-	// Mesh, used to approximate element's physics when physics model is used
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PhysicsModel")
-	class UStaticMesh* PhysicsMesh = nullptr;
-
-	// Controls the transofrm of the physics element relative to the rig element
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PhysicsModel")
-	FTransform PhysicsMeshRelativeTransform;
-
-	// Mass, used as a parameter for physics model
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PhysicsModel")
-	float Mass = 100.f;
-
-	// Air drag parameter, used by the physics model
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PhysicsModel")
-	float AirDrag = 1.f;
-
-	// Used for Limited Attachement Type, defines per axis limits for the constraint
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PhysicsModel")
-	FVector PhysicsConstraintLimits = FVector(100, 100, 100);
-
-	// Used for Limited Attachement Type, defines per axis angular limits for the constraint
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PhysicsModel")
-	FRotator PhysicsAngularLimits = FRotator(90, 90, 90);
-
-	// Smooths out position changes, if set to 0, no interpolation is applied
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PhysicsModel")
-	float PhysicsModelPositionInterpolationSpeed = 10.f;
-
-	// Smooths out rotation changes, if set to 0, no interpolation is applied
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PhysicsModel")
-	float PhysicsModelRotationInterpolationSpeed = 10.f;
-
-	// ID of the position stack, created for this physics element
-	UPROPERTY(BlueprintReadOnly, Category = "PhysicsModel")
-	int32 PositionStackID = -1;
-
-	// ID of the rotation stack, created for this physics element
-	UPROPERTY(BlueprintReadOnly, Category = "PhysicsModel")
-	int32 RotationStackID = -1;
-
-
-	FMPAS_PhysicsElementConfiguration() {}
 };
 
 

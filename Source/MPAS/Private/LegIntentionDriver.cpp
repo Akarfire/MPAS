@@ -1,11 +1,12 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "LegIntentionDriver.h"
+#include "Default/IntentionDrivers/LegIntentionDriver/LegIntentionDriver.h"
 #include "MPAS_Handler.h"
 #include "MPAS_RigElement.h"
-#include "MPAS_Leg.h"
-#include "MPAS_BodySegment.h"
+#include "Default/RigElements/MPAS_Leg.h"
+#include "Default/RigElements/MPAS_BodySegment.h"
+#include "Kismet/KismetMathLibrary.h"
 
 // Called when the state is made active
 void UMPAS_LegIntentionDriverState::EnterState_Implementation()
@@ -74,16 +75,29 @@ void UMPAS_LegIntentionDriverState::UpdateState_Implementation(float DeltaTime)
 
 			// Average calculation steps
 			NumberOfLegs++;
-			LegAverageLocation += PlacementLocation;
+			LegAverageLocation += Leg->GetComponentLocation();
 
 			// Fetching limitations
 			ShiftLimitations.Add(TPair<FVector, FVector>(Leg->EffectorShift_Min, Leg->EffectorShift_Max));
 		}
-		
+
 		// Completing average calculation
 		LegAverageLocation /= NumberOfLegs;
 
 		// Calculating each leg's effector shift
+
+		// Initializing shift array
+		TArray<FVector> Shift;
+		Shift.Init(FVector(0), NumberOfLegs);
+
+		// Calculating target value
+		FVector Target = DesiredLocation - LegAverageLocation;
+
+		CalculateEffectorShift(Shift, Target, ShiftLimitations);
+
+		// Setting leg shift with interpolation
+		for (int i = 0; i < ActiveLegs.Num(); i++)
+			ActiveLegs[i]->EffectorShift = Shift[i];
 	}
 }
 
@@ -95,4 +109,68 @@ void UMPAS_LegIntentionDriverState::UpdateState_Implementation(float DeltaTime)
 FVector UMPAS_LegIntentionDriverState::PlaceLegTargetLocation(const FVector& DesiredPlacementLocation)
 {
 	return DesiredPlacementLocation;
+}
+
+
+/*
+* Calculates effector shift for each leg, described by Limitations (Size of Limitations = number of legs that will be processed)
+* Puts the result into OutShift (it MUST already have the required size)
+*/
+void UMPAS_LegIntentionDriverState::CalculateEffectorShift(TArray<FVector>& OutShift, const FVector& InTarget, const TArray<TPair<FVector, FVector>>& InLimitations)
+{
+	// Assigning target shift value to each leg
+	for (int i = 0; i < OutShift.Num(); i++) OutShift[i] = InTarget;
+
+	// Initializing clamp cache (stores whether each leg was clamped with most recent clamp call)
+	TArray<bool> ClampCache;
+	ClampCache.Init(false, OutShift.Num());
+
+	// Initial clamp
+	ClampShift(OutShift, ClampCache, InLimitations);
+
+	// Redistribution iterations
+	for (int i = 1; i < OutShift.Num(); i++)
+	{
+		ShiftRedistributionIteration(OutShift, InTarget, ClampCache);
+		ClampShift(OutShift, ClampCache, InLimitations);
+	}
+}
+
+/*
+* Clamps effector shift to it's limitations
+* OutClamped contains data, whether each individual offset was clamped
+*/
+void UMPAS_LegIntentionDriverState::ClampShift(TArray<FVector>& InOutShift, TArray<bool>& OutClamped, const TArray<TPair<FVector, FVector>>& InLimitations)
+{
+	for (int i = 0; i < InOutShift.Num(); i++)
+	{
+		FVector PreviousShift = InOutShift[i];
+		InOutShift[i] = ClampVector(InOutShift[i], InLimitations[i].Key, InLimitations[i].Value);
+
+		OutClamped[i] = !UKismetMathLibrary::EqualEqual_VectorVector(InOutShift[i], PreviousShift);
+	}
+}
+
+/*
+* Redistributes shift from leg's that hit there limitation to the ones that are still capable of moving
+* Updates the values in the InOutShift
+*/
+void UMPAS_LegIntentionDriverState::ShiftRedistributionIteration(TArray<FVector>& InOutShift, const FVector& InTarget, const TArray<bool>& InClamped)
+{
+	for (int i = 0; i < InOutShift.Num(); i++)
+	{
+		// Do not change clamped values
+		if (InClamped[i]) continue;
+
+		int NumberOfNonClamped = 0;
+		FVector Sum = FVector(0);
+
+		for (int j = 0; j < InOutShift.Num(); j++)
+		{
+			NumberOfNonClamped += (int)(!InClamped[j]);
+			Sum += InTarget - InOutShift[j];
+		}
+
+		InOutShift[i] += (Sum / NumberOfNonClamped);
+	}
 }

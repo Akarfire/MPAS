@@ -2,9 +2,9 @@
 
 
 #include "MPAS_Handler.h"
-#include "MPAS_Core.h"
+#include "Default/MPAS_Core.h"
 #include "MPAS_RigElement.h"
-#include "MPAS_VisualRigElement.h"
+#include "Default/RigElements/MPAS_VisualRigElement.h"
 #include "Kismet/GameplayStatics.h"
 #include "PhysicsEngine/PhysicsConstraintComponent.h"
 #include "PhysicsEngine/ConstraintInstanceBlueprintLibrary.h"
@@ -25,6 +25,9 @@ UMPAS_Handler::UMPAS_Handler()
 void UMPAS_Handler::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Locates or creates a new timer controller
+	InitTimerController();
 
 	// Scans rig on begin play
 	ScanRig();
@@ -52,12 +55,6 @@ void UMPAS_Handler::TickComponent(float DeltaTime, ELevelTick TickType, FActorCo
 
 	// Updates rig every tick
 	UpdateRig(DeltaTime);
-
-	// Updates all of the timers
-	UpdateTimers(DeltaTime);
-
-	// Updates all timelines
-	UpdateTimelines(DeltaTime);
 
 	// Updates intention driver
 	UpdateIntentionDriver(DeltaTime);
@@ -166,6 +163,26 @@ void UMPAS_Handler::UpdateRig(float DeltaTime)
 {
 	for (auto& RigElement : RigData)
 		RigElement.Value.RigElement->UpdateRigElement(DeltaTime);
+}
+
+
+
+// Locates or creates a new timer controller
+void UMPAS_Handler::InitTimerController()
+{
+	// Trying to locate existing timer controller
+	UActorComponent* TimerControllerComponent = GetOwner()->GetComponentByClass(USTT_TimerController::StaticClass());
+	if (TimerControllerComponent)
+	{
+		TimerController = Cast<USTT_TimerController>(TimerControllerComponent);
+		return;
+	}
+
+	// If failed to find, create a new one
+	TimerControllerComponent = GetOwner()->AddComponentByClass(USTT_TimerController::StaticClass(), false, FTransform(), false);
+	GetOwner()->AddInstanceComponent(TimerControllerComponent);
+
+	TimerController = Cast<USTT_TimerController>(TimerControllerComponent);
 }
 
 
@@ -299,8 +316,8 @@ void UMPAS_Handler::GeneratePhysicsModel()
 			GeneratePhysicsElement(RigElementData.Key);
 	}
 
-	CreateTimer("RestabilizationTimer", RestabilizationCycleTime, true, false);
-	SubscribeToTimer("RestabilizationTimer", this, "OnRestabilizationCycleTicked");
+	TimerController->CreateTimer("RestabilizationTimer", RestabilizationCycleTime, true, false);
+	TimerController->SubscribeToTimer("RestabilizationTimer", this, "OnRestabilizationCycleTicked");
 }
 
 // An iteration of generating of a physics model
@@ -464,12 +481,12 @@ void UMPAS_Handler::SetPhysicsModelEnabled(bool InNewEnabled)
 	if (PhysicsModelEnabled)
 	{
 		// Restarting a restabilization Timer
-		ResetTimer("RestabilizationTimer");
-		StartTimer("RestabilizationTimer");
+		TimerController->ResetTimer("RestabilizationTimer");
+		TimerController->StartTimer("RestabilizationTimer");
 	}
 
 	else
-		PauseTimer("RestabilizationTimer");
+		TimerController->PauseTimer("RestabilizationTimer");
 }
 
 
@@ -542,384 +559,6 @@ void UMPAS_Handler::OnRestabilizationCycleTicked()
 			}
 		}
 	}
-}
-
-
-
-// TIMERS
-
-// Updates all active timers
-void UMPAS_Handler::UpdateTimers(float DeltaTime)
-{
-	TArray<FName> FinishedTimers;
-
-	for (auto& TimerData : Timers)
-		if (!TimerData.Value.Paused)
-		{
-			TimerData.Value.Time -= DeltaTime;
-
-			if (TimerData.Value.Time <= 0)
-				FinishedTimers.Add(TimerData.Value.TimerName);
-		}
-
-	for (auto& Timer : FinishedTimers)
-	{
-		Timers[Timer].OnTimerFinished.Broadcast(Timer);
-
-		if (Timers[Timer].Loop)
-			Timers[Timer].Time = Timers[Timer].InitialTime;
-
-		else
-			DeleteTimer(Timer);
-	}
-}
-
-
-// Creates a new timer
-bool UMPAS_Handler::CreateTimer(FName TimerName, float Time, bool Loop, bool AutoStart)
-{
-	if (Timers.Contains(TimerName))
-		return false;
-
-	FTimer Timer;
-	Timer.TimerName = TimerName;
-	Timer.Time = Time;
-	Timer.InitialTime = Time;
-	Timer.Loop = Loop;
-	
-	Timers.Add(TimerName, Timer);
-
-	if (AutoStart)
-		StartTimer(TimerName);
-
-	return true;
-}
-
-// Sets timer back to it's initial value
-bool UMPAS_Handler::ResetTimer(FName TimerName)
-{
-	if (!Timers.Contains(TimerName))
-		return false;
-
-	FTimer& Timer = Timers[TimerName];
-	Timer.Time = Timer.InitialTime;
-
-	return true;
-}
-
-// Starts a timer
-bool UMPAS_Handler::StartTimer(FName TimerName)
-{
-	if (!Timers.Contains(TimerName))
-		return false;
-
-	FTimer& Timer = Timers[TimerName];
-	Timer.Paused = false;
-
-	return true;
-}
-
-// Pauses a timer
-bool UMPAS_Handler::PauseTimer(FName TimerName)
-{
-	if (!Timers.Contains(TimerName))
-		return false;
-
-	FTimer& Timer = Timers[TimerName];
-	Timer.Paused = true;
-
-	return true;
-}
-
-// Deletes a timer
-bool UMPAS_Handler::DeleteTimer(FName TimerName)
-{
-	if (!Timers.Contains(TimerName))
-		return false;
-
-	Timers.Remove(TimerName);
-
-	return true;
-}
-
-
-// Subscribes a rig element to a timer
-bool UMPAS_Handler::SubscribeToTimer(FName TimerName, UObject* Subscriber, FName NotificationFunctionName)
-{
-	if (!Timers.Contains(TimerName) || !Subscriber)
-		return false;
-
-	TScriptDelegate Delegate;
-	Delegate.BindUFunction(Subscriber, NotificationFunctionName);
-	Timers[TimerName].OnTimerFinished.Add(Delegate);
-
-	return true;
-}
-
-// Unsubscribes a rig element from a timer
-bool UMPAS_Handler::UnSubscribeFromTimer(FName TimerName, UObject* Subscriber, FName NotificationFunctionName)
-{
-	if (!Timers.Contains(TimerName) || !Subscriber)
-		return false;
-
-	TScriptDelegate Delegate;
-	Delegate.BindUFunction(Subscriber, NotificationFunctionName);
-	Timers[TimerName].OnTimerFinished.Remove(Delegate);
-
-	return true;
-}
-
-// Returns the value of the timer
-float UMPAS_Handler::GetTimerValue(FName TimerName)
-{
-	if (!Timers.Contains(TimerName))
-		return 0;
-
-	return Timers[TimerName].Time;
-}
-
-
-// TIMELINES
-
-// Updates all active timelines
-void UMPAS_Handler::UpdateTimelines(float DeltaTime)
-{
-	TArray<FName> FinishedTimelines;
-
-	for (auto& Timeline : Timelines)
-	{
-		if (!Timeline.Value.Timer.Paused)
-		{
-			float Decr = DeltaTime * Timeline.Value.PlaybackSpeed;
-			if (Timeline.Value.Reversed)
-				Decr *= -1;
-
-			Timeline.Value.Timer.Time -= Decr;
-
-			if (Timeline.Value.Timer.Time <= 0 || Timeline.Value.Timer.Time > Timeline.Value.Timer.InitialTime)
-				FinishedTimelines.Add(Timeline.Key);
-
-			Timeline.Value.OnTimelineUpdated.Broadcast(Timeline.Key, Timeline.Value.Timer.InitialTime - Timeline.Value.Timer.Time);
-		}
-	}
-
-	for (auto& Timeline : FinishedTimelines)
-	{
-		Timelines[Timeline].OnTimelineFinished.Broadcast(Timeline);
-
-		if (Timelines[Timeline].Timer.Loop)
-		{
-			if (Timelines[Timeline].Reversed)
-				Timelines[Timeline].Timer.Time = 0;
-
-			else
-				Timelines[Timeline].Timer.Time = Timelines[Timeline].Timer.InitialTime;
-		}
-
-		else
-			Timelines[Timeline].Timer.Paused = true;
-	}
-}
-
-// Creates a new timeline
-bool UMPAS_Handler::CreateTimeline(FName TimelineName, float Length, bool Loop, bool AutoStart)
-{
-	if (Timelines.Contains(TimelineName))
-		return false;
-
-	FTimeline NewTimeline;
-	NewTimeline.TimelineName = TimelineName;
-
-	FTimer TimelineTimer;
-	TimelineTimer.TimerName = FName("TIMELINE_TIMER_" + TimelineName.ToString());
-	TimelineTimer.InitialTime = Length;
-	TimelineTimer.Time = Length;
-	TimelineTimer.Loop = Loop;
-	TimelineTimer.Paused = true;
-	
-	NewTimeline.Timer = TimelineTimer;
-	
-	Timelines.Add(TimelineName, NewTimeline);
-
-	if (AutoStart)
-		StartTimeline(TimelineName);
-
-	return true;
-}
-
-// Starts timeline playback
-bool UMPAS_Handler::StartTimeline(FName TimelineName)
-{
-	if (!Timelines.Contains(TimelineName))
-		return false;
-
-	ResetTimeline(TimelineName);
-	Timelines[TimelineName].Timer.Paused = false;
-
-	return true;
-}
-
-// Pauses timeline playback
-bool UMPAS_Handler::PauseTimeline(FName TimelineName)
-{
-	if (!Timelines.Contains(TimelineName))
-		return false;
-
-	Timelines[TimelineName].Timer.Paused = true;
-
-	return true;
-}
-
-// Plays timeline starting at the current time
-bool UMPAS_Handler::PlayTimeline(FName TimelineName)
-{
-	if (!Timelines.Contains(TimelineName))
-		return false;
-
-	Timelines[TimelineName].Timer.Paused = false;
-
-	return true;
-}
-
-// Reverses timeline playback
-bool UMPAS_Handler::ReverseTimeline(FName TimelineName)
-{
-	if (!Timelines.Contains(TimelineName))
-		return false;
-
-	Timelines[TimelineName].Reversed = !Timelines[TimelineName].Reversed;
-
-	return true;
-}
-
-// Resets time line time to zero
-bool UMPAS_Handler::ResetTimeline(FName TimelineName)
-{
-	if (!Timelines.Contains(TimelineName))
-		return false;
-
-	Timelines[TimelineName].Timer.Time = Timelines[TimelineName].Timer.InitialTime;
-
-	return true;
-}
-
-// Sets timepline current time to a new value
-bool UMPAS_Handler::SetTimelineTime(FName TimelineName, float NewTime)
-{
-	if (!Timelines.Contains(TimelineName))
-		return false;
-
-	Timelines[TimelineName].Timer.Time = NewTime;
-
-	return true;
-}
-
-// Sets timepline playback speed to a new value
-bool UMPAS_Handler::SetTimelinePlaybackSpeed(FName TimelineName, float NewSpeed)
-{
-	if (!Timelines.Contains(TimelineName))
-		return false;
-
-	Timelines[TimelineName].PlaybackSpeed = NewSpeed;
-
-	return true;
-}
-
-// Deletes a timeline
-bool UMPAS_Handler::DeleteTimeline(FName TimelineName)
-{
-	if (!Timelines.Contains(TimelineName))
-		return false;
-
-	Timelines.Remove(TimelineName);
-
-	return true;
-}
-
-// Subscribes a rig element to a timepline
-bool UMPAS_Handler::SubscribeToTimeline(FName TimelineName, UObject* Subscriber, FName OnUpdateFunctionName, FName OnFinishedFunctionName)
-{
-	if (!Timelines.Contains(TimelineName) || !Subscriber)
-		return false;
-
-	// On Updated event
-	if (OnUpdateFunctionName != FName(""))
-	{
-		FScriptDelegate Delegate;
-		Delegate.BindUFunction(Subscriber, OnUpdateFunctionName);
-		Timelines[TimelineName].OnTimelineUpdated.Add(Delegate);
-	}
-	
-	// On Finished event
-	if (OnFinishedFunctionName != FName(""))
-	{
-		FScriptDelegate Delegate;
-		Delegate.BindUFunction(Subscriber, OnFinishedFunctionName);
-		Timelines[TimelineName].OnTimelineFinished.Add(Delegate);
-	}
-
-	return true;
-}
-
-// Unsubscribes a rig element from a timeline
-bool UMPAS_Handler::UnSubscribeFromTimeline(FName TimelineName, UObject* Subscriber, FName OnUpdateFunctionName, FName OnFinishedFunctionName)
-{
-	if (!Timelines.Contains(TimelineName) || !Subscriber)
-		return false;
-
-	// On Updated event
-	if (OnUpdateFunctionName != FName(""))
-	{
-		FScriptDelegate Delegate;
-		Delegate.BindUFunction(Subscriber, OnUpdateFunctionName);
-		Timelines[TimelineName].OnTimelineUpdated.Remove(Delegate);
-	}
-	
-	// On Finished event
-	if (OnFinishedFunctionName != FName(""))
-	{
-		FScriptDelegate Delegate;
-		Delegate.BindUFunction(Subscriber, OnFinishedFunctionName);
-		Timelines[TimelineName].OnTimelineFinished.Remove(Delegate);
-	}
-
-	return true;
-}
-
-// Returns the value of the current time of the timeline
-float UMPAS_Handler::GetTimelineTime(FName TimelineName)
-{
-	if (!Timelines.Contains(TimelineName))
-		return 0;
-
-	return Timelines[TimelineName].Timer.Time;
-}
-
-// Returns the length of the timeline
-float UMPAS_Handler::GetTimelineLength(FName TimelineName)
-{
-	if (!Timelines.Contains(TimelineName))
-		return 0;
-
-	return Timelines[TimelineName].Timer.InitialTime;
-}
-
-// Returns the playback speed of the timeline
-float UMPAS_Handler::GetTimelinePlaybackspeed(FName TimelineName)
-{
-	if (!Timelines.Contains(TimelineName))
-		return 0;
-
-	return Timelines[TimelineName].PlaybackSpeed;
-}
-
-// Returns timeline is reversed value
-bool UMPAS_Handler::GetTimelineReversed(FName TimelineName)
-{
-	if (!Timelines.Contains(TimelineName))
-		return false;
-
-	return Timelines[TimelineName].Reversed;
 }
 
 

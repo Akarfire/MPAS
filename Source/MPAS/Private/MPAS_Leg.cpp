@@ -1,9 +1,10 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "MPAS_Leg.h"
+#include "Default/RigElements/MPAS_Leg.h"
 #include "MPAS_Handler.h"
-#include "MPAS_Core.h"
+#include "Default/MPAS_Core.h"
+#include "Kismet/KismetMathLibrary.h"
 #include "Curves/RichCurve.h"
 
 // Constructor
@@ -20,8 +21,9 @@ void UMPAS_Leg::InitRigElement(UMPAS_Handler* InHandler)
 	Super::InitRigElement(InHandler);
 
 	StepTimelineName = FName("LegStepTimeline_" + RigElementName.ToString());
-	InHandler->CreateTimeline(StepTimelineName, StepAnimationDuration, false, false);
-	InHandler->SubscribeToTimeline(StepTimelineName, this, "OnStepAnimationTimelineUpdated", "OnStepAnimationTimelineFinished");
+	InHandler->TimerController->CreateTimeline(StepTimelineName, StepAnimationDuration, false, false);
+	InHandler->TimerController->RegisterTimelineNotify(StepTimelineName, "StepFinishedNotify", StepAnimationDuration - StepFinishTimeOffset);
+	InHandler->TimerController->SubscribeToTimeline(StepTimelineName, this, "OnStepAnimationTimelineUpdated", "OnStepAnimationTimelineFinished", "OnStepAnimationTimelineNotify");
 
 	// Currently scheduled to move group of legs
 	InHandler->CreateIntParameter("CurrentLegGroup", 0);
@@ -128,7 +130,10 @@ void UMPAS_Leg::UpdateRigElement(float DeltaTime)
 
 	// If element is active 
 	if (GetRigElementActive())
-		ParentElement->SetPositionSourceValue(0, LegEffectorLayerID, this, GetComponentLocation() + EffectorShift);
+	{
+		RealEffectorShift = UKismetMathLibrary::VInterpTo(RealEffectorShift, EffectorShift, DeltaTime, EffectorShiftInterpolationSpeed);
+		ParentElement->SetPositionSourceValue(0, LegEffectorLayerID, this, GetComponentLocation() + RealEffectorShift);
+	}
 
 	else if (GetStabilityStatus() == EMPAS_StabilityStatus::Stable)
 	{
@@ -250,8 +255,8 @@ void UMPAS_Leg::StartStepAnimation()
 	{
 		SetRigElementActive(true);
 		GetHandler()->SetIntParameter("CurrentlyMovingLegsCount", GetHandler()->GetIntParameter("CurrentlyMovingLegsCount") + 1);
-		GetHandler()->SetTimelinePlaybackSpeed(StepTimelineName, AnimationSpeedMultiplier * SpeedMultiplier);
-		GetHandler()->StartTimeline(StepTimelineName);
+		GetHandler()->TimerController->SetTimelinePlaybackSpeed(StepTimelineName, AnimationSpeedMultiplier * SpeedMultiplier);
+		GetHandler()->TimerController->StartTimeline(StepTimelineName);
 		IsMoving = true;
 		HasMovedInCurrentWindow = true;
 		ParentElement->SetStabilityEffectorValue(this, 1.f);
@@ -287,7 +292,14 @@ void UMPAS_Leg::OnStepAnimationTimelineFinished(FName InTimelineName)
 	if (InTimelineName == StepTimelineName)
 	{
 		IsMoving = false;
+	}
+}
 
+// CALLED BY THE HANDLER : NOTIFICATION Called when a subscribed-to timeline is finished
+void UMPAS_Leg::OnStepAnimationTimelineNotify(FName InTimelineName, FName InNotifyName)
+{
+	if (InTimelineName == StepTimelineName && InNotifyName == "StepFinishedNotify")
+	{
 		int32 CurrentlyMovingLegsCount = GetHandler()->GetIntParameter("CurrentlyMovingLegsCount");
 		GetHandler()->SetIntParameter("CurrentlyMovingLegsCount", CurrentlyMovingLegsCount - 1);
 
@@ -300,9 +312,9 @@ void UMPAS_Leg::OnStepAnimationTimelineFinished(FName InTimelineName)
 
 			else
 				CurrentLegGroup++;
-			
+
 			// Skiping empty leg groups
-			while ( !GetHandler()->IsIntParameterValid( FName( "LegGroupSize_" + FString::FromInt(CurrentLegGroup) ) ) )
+			while (!GetHandler()->IsIntParameterValid(FName("LegGroupSize_" + FString::FromInt(CurrentLegGroup))))
 				CurrentLegGroup++;
 
 			GetHandler()->SetIntParameter("CurrentLegGroup", CurrentLegGroup);
@@ -317,3 +329,14 @@ void UMPAS_Leg::OnPhysicsModelDisabled_Implementation()
 		if(PhysicsElements[0])
 			SetPositionSourceValue(0, SelfAbsolutePositionLayerID, this, PhysicsElements[0]->GetComponentLocation());
 }	
+
+
+// Offset in time from the end of the step animation, when the leg group assumes the step to be finished
+// Useful for running, where the next group needs to start BEFORE the current one actually finishes
+void UMPAS_Leg::SetStepFinishTimeOffset(float newOffset)
+{
+	StepFinishTimeOffset = newOffset;
+
+	// Updating value in the timeline
+	GetHandler()->TimerController->ModifyTimelineNotify(StepTimelineName, "StepFinishedNotify", StepAnimationDuration - StepFinishTimeOffset);
+}

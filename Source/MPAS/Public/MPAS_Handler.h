@@ -4,7 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "MPAS_IntentionStateMachine.h"
+#include "IntentionDriving/MPAS_IntentionStateMachine.h"
+#include "MPAS_PhysicsModel.h"
+#include "STT_TimerController.h"
 #include "MPAS_Handler.generated.h"
 
 
@@ -12,16 +14,6 @@
 
 // Fires off when custom MPAS_Handler parameter value is changed
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnParameterValueChanged, FName, InParameterName);
-
-// Fires off when MPAS_Handler timer has finished
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTimerFinished, FName, InTimerName);
-
-// Fires off every tick when MPAS_Handler timeline is playing, reports the current time of the timeline
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTimelineUpdated, FName, InTimelineName, float, InCurrentTime);
-
-// Fires off when MPAS_Handler timeline has finished playing
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTimelineFinished, FName, InTimelineName);
-
 
 
 // STRUCTURES
@@ -55,51 +47,6 @@ struct FMPAS_RigElementData
 	void AddChildElement(const FName& InChildElementName) { ChildElements.Add(InChildElementName); }
 };
 
-
-// Constains data about a Physics Constraint, connecting elements in the physics model
-USTRUCT(BlueprintType)
-struct FMPAS_PhysicsModelConstraintData
-{
-	GENERATED_USTRUCT_BODY()
-
-	// Pointer to the constraint componenet
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	class UPhysicsConstraintComponent* ConstraintComponent;
-
-	// Pointer to the first connected physics element
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	class UPrimitiveComponent* Body_1;
-
-	// Pointer to the second connected physics element
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	class UPrimitiveComponent* Body_2;
-
-	FMPAS_PhysicsModelConstraintData(class UPhysicsConstraintComponent* InConstraintComponent = nullptr, class UPrimitiveComponent* InBody_1 = nullptr, class UPrimitiveComponent* InBody_2 = nullptr): ConstraintComponent(InConstraintComponent), Body_1(InBody_1), Body_2(InBody_2) {}
-};
-
-
-// Constains an array of FMPAS_PhysicsModelConstraintData to be stored in a map
-USTRUCT(BlueprintType)
-struct FMPAS_ElementPhysicsConstraints
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<FMPAS_PhysicsModelConstraintData> Constraints;
-};
-
-// Constains an array of UMPAS_PhysicsModelElement pointers to be stored in a map
-USTRUCT(BlueprintType)
-struct FMPAS_PhysicsElementsArray
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<class UMPAS_PhysicsModelElement*> Elements;
-
-	FMPAS_PhysicsElementsArray() {}
-	FMPAS_PhysicsElementsArray(const TArray<class UMPAS_PhysicsModelElement*>& InElements): Elements(InElements) {}
-};
 
 
 /* Defines rules for a propogation call
@@ -164,6 +111,15 @@ protected:
 	// Whether rig setup process has been completed
 	bool SetupComplete = false;
 
+public:
+
+	/* A pointer to TimerController from STT_TimersAndTimelines
+	 * It allows for handling custom timers and timelines with Delegate notifications
+	 * Very useful for components that need to be animated and also for intention drivers
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "MPAS|Handler")
+	USTT_TimerController* TimerController;
+
 public:	
 	// Sets default values for this component's properties
 	UMPAS_Handler();
@@ -190,6 +146,10 @@ protected:
 
 	// Updates all elements in RigData
 	void UpdateRig(float DeltaTime);
+
+
+	// Locates or creates a new timer controller
+	void InitTimerController();
 
 
 public:	
@@ -384,150 +344,9 @@ public:
 	void DeactivatePhysicsModelConstraint(FName InRigElementName);
 
 
-// TIMERS
-
-protected:
-
-	// Timer data struct
-	struct FTimer
-	{
-		FName TimerName;
-		bool Paused = true;
-		float Time = 0.f;
-		float InitialTime = 0.f;
-		bool Loop = false;
-
-		FOnTimerFinished OnTimerFinished;
-	};
-
-	// Map of all active Timers
-	TMap<FName, FTimer> Timers;
-
-	// Updates all active timers
-	void UpdateTimers(float DeltaTime);
-
-public:
-	// Creates a new timer
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timers")
-	bool CreateTimer(FName TimerName, float Time, bool Loop = false, bool AutoStart = true);
-
-	// Sets timer back to it's initial value
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timers")
-	bool ResetTimer(FName TimerName);
-
-	// Starts a timer
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timers")
-	bool StartTimer(FName TimerName);
-	
-	// Pauses a timer
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timers")
-	bool PauseTimer(FName TimerName);
-
-	// Deletes a timer
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timers")
-	bool DeleteTimer(FName TimerName);
-
-	// Subscribes a rig element to a timer
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timers")
-	bool SubscribeToTimer(FName TimerName, UObject* Subscriber, FName NotificationFunctionName);
-
-	// Unsubscribes a rig element from a timer
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timers")
-	bool UnSubscribeFromTimer(FName TimerName, UObject* Subscriber, FName NotificationFunctionName);
-
-	// Returns the value of the timer
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|Handler|Timers")
-	float GetTimerValue(FName TimerName);
-
-
-
-// TIMELINES
-
-protected:
-
-	// Timeline data struct
-	struct FTimeline
-	{
-		FName TimelineName;
-		FTimer Timer;
-
-		float PlaybackSpeed = 1.f;
-		bool Reversed = false;
-
-		FOnTimelineUpdated OnTimelineUpdated;
-		FOnTimelineFinished OnTimelineFinished;
-	};
-
-	// Map of all active timelines
-	TMap<FName, FTimeline> Timelines;
-
-	// Updates all active timelines
-	void UpdateTimelines(float DeltaTime);
-
-public:
-	// Creates a new timeline
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timelines")
-	bool CreateTimeline(FName TimelineName, float Length, bool Loop = false, bool AutoStart = false);
-
-	// Starts timeline playback
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timelines")
-	bool StartTimeline(FName TimelineName);
-	
-	// Pauses timeline playback
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timelines")
-	bool PauseTimeline(FName TimelineName);
-	
-	// Plays timeline starting at the current time
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timelines")
-	bool PlayTimeline(FName TimelineName);
-
-	// Reverses timeline playback
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timelines")
-	bool ReverseTimeline(FName TimelineName);
-
-	// Resets time line time to zero
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timelines")
-	bool ResetTimeline(FName TimelineName);
-
-	// Sets timepline current time to a new value
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timelines")
-	bool SetTimelineTime(FName TimelineName, float NewTime);
-
-	// Sets timepline playback speed to a new value
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timelines")
-	bool SetTimelinePlaybackSpeed(FName TimelineName, float NewSpeed);
-
-	// Deletes a timeline
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timelines")
-	bool DeleteTimeline(FName TimelineName);
-
-	// Subscribes a rig element to a timepline, pass in "" as function name, if you don't want to subscriber to that event
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timelines")
-	bool SubscribeToTimeline(FName TimelineName, UObject* Subscriber, FName OnUpdateFunctionName, FName OnFinishedFunctionName);
-
-	// Unsubscribes a rig element from a timeline
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Timelines")
-	bool UnSubscribeFromTimeline(FName TimelineName, UObject* Subscriber, FName OnUpdateFunctionName, FName OnFinishedFunctionName);
-
-	// Returns the value of the current time of the timeline
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|Handler|Timelines")
-	float GetTimelineTime(FName TimelineName);
-
-	// Returns the length of the timeline
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|Handler|Timelines")
-	float GetTimelineLength(FName TimelineName);
-
-	// Returns the playback speed of the timeline
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|Handler|Timelines")
-	float GetTimelinePlaybackspeed(FName TimelineName);
-
-	// Returns timeline is reversed value
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|Handler|Timelines")
-	bool GetTimelineReversed(FName TimelineName);
-
-
 
 // CUSTOM PARAMETERS
+
 protected:
 
 	// Parameter subscribers map

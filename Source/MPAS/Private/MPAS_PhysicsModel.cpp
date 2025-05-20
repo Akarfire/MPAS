@@ -1,8 +1,17 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "MPAS_PhysicsModelElement.h"
+#include "MPAS_PhysicsModel.h"
 #include "MPAS_RigElement.h"
+
+MPAS_PhysicsModel::MPAS_PhysicsModel()
+{
+}
+
+MPAS_PhysicsModel::~MPAS_PhysicsModel()
+{
+}
+
 
 UMPAS_PhysicsModelElement::UMPAS_PhysicsModelElement()
 {

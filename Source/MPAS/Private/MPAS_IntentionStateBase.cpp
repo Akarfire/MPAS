@@ -1,9 +1,9 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "MPAS_IntentionStateBase.h"
+#include "IntentionDriving/MPAS_IntentionStateBase.h"
 #include "MPAS_Handler.h"
-#include "MPAS_IntentionStateMachine.h"
+#include "IntentionDriving/MPAS_IntentionStateMachine.h"
 
 void UMPAS_IntentionStateBase::STATEMACHINE_OnSetStateMachine_Implementation()
 {
