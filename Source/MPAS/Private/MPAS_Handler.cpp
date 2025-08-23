@@ -4,7 +4,7 @@
 #include "MPAS_Handler.h"
 #include "Default/MPAS_Core.h"
 #include "MPAS_RigElement.h"
-#include "Default/RigElements/MPAS_VisualRigElement.h"
+#include "Default/RigElements/MPAS_VoidRigElement.h"
 #include "Kismet/GameplayStatics.h"
 #include "PhysicsEngine/PhysicsConstraintComponent.h"
 #include "PhysicsEngine/ConstraintInstanceBlueprintLibrary.h"
@@ -102,7 +102,7 @@ void UMPAS_Handler::ScanElement(UMPAS_RigElement* RigElement, const FName& Paren
 		CoreElements.Add(Name);
 
 	// Whether the element is visual
-	bool IsVisual = Cast<UMPAS_VisualRigElement>(RigElement) != nullptr;
+	bool IsVoid = Cast<UMPAS_VoidRigElement>(RigElement) != nullptr;
 	
 	// Getting all children of this element
 	TArray<USceneComponent*> CoreChildComponents;
@@ -121,7 +121,7 @@ void UMPAS_Handler::ScanElement(UMPAS_RigElement* RigElement, const FName& Paren
 			ElementData.AddChildElement(ChildName);
 
 			// Scanning child elements
-			ScanElement(ChildElement, (!IsVisual) ? Name : ParentElementName);
+			ScanElement(ChildElement, (!IsVoid) ? Name : ParentElementName);
 		}
 	}
 

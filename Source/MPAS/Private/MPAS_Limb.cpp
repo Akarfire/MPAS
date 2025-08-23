@@ -32,14 +32,14 @@ void UMPAS_Limb::InitLimb()
             float PreviousLength = 0.f;
             if (i != 0) 
             {
-                PreviousLocation = CurrentState[i - 1].Position;
+                PreviousLocation = CurrentState[i - 1].Location;
                 PreviousLength = Segments[i - 1].Length;
             }
 
-            NewState.Position = PreviousLocation + FVector(0, 0, 1) * PreviousLength;
+            NewState.Location = PreviousLocation + FVector(0, 0, 1) * PreviousLength;
             
             if (i > 0)
-                CurrentState[i - 1].Rotation = UKismetMathLibrary::FindLookAtRotation(PreviousLocation, NewState.Position);
+                CurrentState[i - 1].Rotation = UKismetMathLibrary::FindLookAtRotation(PreviousLocation, NewState.Location);
 
             CurrentState.Add(NewState);
             WriteSegmentState(i, NewState);
@@ -88,11 +88,11 @@ void UMPAS_Limb::InitLimb()
                 FMPAS_LimbSegmentData NewSegment;
                 FMPAS_LimbSegmentState NewState;
 
-                NewState.Position = Fetch_MeshComponent->GetBoneLocation(ReversedBoneChain[i]);
+                NewState.Location = Fetch_MeshComponent->GetBoneLocation(ReversedBoneChain[i]);
                 NewState.Rotation = (FRotator)Fetch_MeshComponent->GetBoneQuaternion(ReversedBoneChain[i]);
 
                 NewSegment.BoneName = ReversedBoneChain[i];
-                NewSegment.Length = (NewState.Position - Fetch_MeshComponent->GetBoneLocation(ReversedBoneChain[i - 1])).Size();
+                NewSegment.Length = (NewState.Location - Fetch_MeshComponent->GetBoneLocation(ReversedBoneChain[i - 1])).Size();
                 
                 MaxExtent += NewSegment.Length;
                 
@@ -103,7 +103,7 @@ void UMPAS_Limb::InitLimb()
             // Tip bone state
             FMPAS_LimbSegmentState TipBoneState;
 
-            TipBoneState.Position = Fetch_MeshComponent->GetBoneLocation(ReversedBoneChain[0]);
+            TipBoneState.Location = Fetch_MeshComponent->GetBoneLocation(ReversedBoneChain[0]);
             TipBoneState.Rotation = (FRotator)Fetch_MeshComponent->GetBoneQuaternion(ReversedBoneChain[0]);
 
             CurrentState.Add(TipBoneState);
@@ -111,10 +111,10 @@ void UMPAS_Limb::InitLimb()
             // Fetching origin position if needed
             if (Fetch_OriginPosition)
             {
-                FVector ParentPosition = CalculatePositionLayerValue(GetPositionLayer(0, 0));
-                FVector NewSelfPosition = CurrentState[0].Position - ParentPosition;
+                FVector ParentLocation = CalculateVectorLayerValue(GetVectorLayer(0, 0));
+                FVector NewSelfLocation = CurrentState[0].Location - ParentLocation;
 
-                SetPositionSourceValue(0, 1, this, NewSelfPosition);
+                SetVectorSourceValue(0, 1, this, NewSelfLocation);
             }
 
             Initialized = true;
@@ -165,7 +165,7 @@ void UMPAS_Limb::GeneratePhysicsModelConfiguration()
             
             NewConfig.ParentPhysicalAttachmentType = SegmentParentPhysicalAttachmentType;
 
-            NewConfig.PhysicsConstraintLimits = FVector(PositionDrift, PositionDrift, PositionDrift);
+            NewConfig.PhysicsConstraintLimits = FVector(LocationDrift, LocationDrift, LocationDrift);
             if (Segments[i].AngularLimits != FRotator(0, 0, 0))
                 NewConfig.PhysicsAngularLimits = Segments[i].AngularLimits;
 
@@ -183,10 +183,10 @@ void UMPAS_Limb::GeneratePhysicsModelConfiguration()
             }
 
             // Creating Position and Rotation stacks and applying them to the configuration
-            NewConfig.PositionStackID = RegisterPositionStack("PhysicsElementPosition_" + UKismetStringLibrary::Conv_IntToString(i));
+            NewConfig.PositionStackID = RegisterVectorStack("PhysicsElementPosition_" + UKismetStringLibrary::Conv_IntToString(i));
             NewConfig.RotationStackID = RegisterRotationStack("PhysicsElementRotation_" + UKismetStringLibrary::Conv_IntToString(i));
 
-            RegisterPositionLayer(NewConfig.PositionStackID, "PhysicsElementPosition", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, true);
+            RegisterVectorLayer(NewConfig.PositionStackID, "PhysicsElementPosition", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, true);
             RegisterRotationLayer(NewConfig.RotationStackID, "PhysicsElementRotation", EMPAS_LayerBlendingMode::Normal, true);
 
 
@@ -232,7 +232,7 @@ void UMPAS_Limb::SolveLimb()
                 const FMPAS_LimbPoleTarget& PoleTargetSettings = PoleTargets[i];
 
                 // Auto calculation mode
-                if (PoleTargetSettings.PositionMode == EMPAS_LimbPoleTargetPositionMode::AutoCalculation)
+                if (PoleTargetSettings.LocationMode == EMPAS_LimbPoleTargetLocationMode::AutoCalculation)
                 {
                     FVector ForwardVector = (TargetLocation - OriginLocation).GetSafeNormal();
                     FVector UpVector = GetUpVector();
@@ -241,10 +241,10 @@ void UMPAS_Limb::SolveLimb()
                     LastCalculatedPoleTarget = OriginLocation + ( ForwardVector * PoleTargetSettings.AUTO_PoleTargetOffset.X + RightVector* PoleTargetSettings.AUTO_PoleTargetOffset.Y + UpVector* PoleTargetSettings.AUTO_PoleTargetOffset.Z );
                 }
 
-                // Position stack mode
-                else if (PoleTargetSettings.PositionMode == EMPAS_LimbPoleTargetPositionMode::PoleTargetPositionStack)
+                // Location stack mode
+                else if (PoleTargetSettings.LocationMode == EMPAS_LimbPoleTargetLocationMode::PoleTargetLocationStack)
                 {
-                    LastCalculatedPoleTarget = CalculatePositionStackValue(PoleTargetSettings.STACK_PositionStackID);
+                    LastCalculatedPoleTarget = CalculateVectorStackValue(PoleTargetSettings.STACK_VectorStackID);
                 }
             }
             
@@ -324,7 +324,7 @@ void UMPAS_Limb::WriteSegmentState(int32 InSegment, const FMPAS_LimbSegmentState
     // Updating bone positions in the handler, if the bone name is the
     if (Segments[InSegment].BoneName != FName())
     {
-        GetHandler()->SetBoneLocation(Segments[InSegment].BoneName, InState.Position);
+        GetHandler()->SetBoneLocation(Segments[InSegment].BoneName, InState.Location);
         GetHandler()->SetBoneRotation(Segments[InSegment].BoneName, InState.Rotation);
     }
 }
@@ -336,19 +336,19 @@ void UMPAS_Limb::InterpolateLimb(float DeltaTime)
     // Ignore interpolation if LimbInterpolationSpeed is set to 0 or less
     if (LimbInterpolationSpeed > 0)
     {
-        FVector NextSegmentPosition = GetComponentLocation();
+        FVector NextSegmentLocation = GetComponentLocation();
 
         for (int i = 0 ; i < CurrentState.Num() - 1; i++)
         {
             CurrentState[i].Rotation = UKismetMathLibrary::RInterpTo_Constant(CurrentState[i].Rotation, TargetState[i].Rotation, DeltaTime, LimbInterpolationSpeed);
 
-            CurrentState[i].Position = NextSegmentPosition;
+            CurrentState[i].Location = NextSegmentLocation;
 
-            NextSegmentPosition = CurrentState[i].Position + Segments[i].Length * UKismetMathLibrary::GetForwardVector(CurrentState[i].Rotation);
+            NextSegmentLocation = CurrentState[i].Location + Segments[i].Length * UKismetMathLibrary::GetForwardVector(CurrentState[i].Rotation);
         }
 
-        // Fective segment's position update
-        CurrentState[CurrentState.Num() - 1].Position = NextSegmentPosition;
+        // Fective segment's location update
+        CurrentState[CurrentState.Num() - 1].Location = NextSegmentLocation;
     }
 
     else
@@ -371,28 +371,28 @@ void UMPAS_Limb::Solve_RotateToTarget()
 }
 
 // FABRIK IK
-TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_FABRIK_IK(const FVector& InOriginPosition, const FVector& InTargetPosition, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, int32 InMaxIterations, float InTollerance)
+TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_FABRIK_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, int32 InMaxIterations, float InTollerance)
 {
     TArray<FMPAS_LimbSegmentState> State = InCurrentState;
 
     size_t Iteration = 0;
 
-    while ((Iteration < InMaxIterations) && (((State[State.Num() - 1].Position - InTargetPosition).Size() > InTollerance) || ((State[0].Position - InOriginPosition).Size() > InTollerance * 0.1f)))
+    while ((Iteration < InMaxIterations) && (((State[State.Num() - 1].Location - InTargetLocation).Size() > InTollerance) || ((State[0].Location - InOriginLocation).Size() > InTollerance * 0.1f)))
     {
         // Backward pass
-        State[State.Num() - 1].Position = InTargetPosition;
+        State[State.Num() - 1].Location = InTargetLocation;
         for (size_t i = State.Num() - 1; i > 0; i--)
         {
-            State[i - 1].Position = State[i].Position + (State[i - 1].Position - State[i].Position).GetSafeNormal() * InSegments[i - 1].Length;
-            State[i - 1].Rotation = UKismetMathLibrary::FindLookAtRotation(State[i - 1].Position, State[i].Position);
+            State[i - 1].Location = State[i].Location + (State[i - 1].Location - State[i].Location).GetSafeNormal() * InSegments[i - 1].Length;
+            State[i - 1].Rotation = UKismetMathLibrary::FindLookAtRotation(State[i - 1].Location, State[i].Location);
         }
 
         // Forward pass
-        State[0].Position = InOriginPosition;
+        State[0].Location = InOriginLocation;
         for (size_t i = 0; i < State.Num() - 1; i++)
         {
-            State[i + 1].Position = State[i].Position + (State[i + 1].Position - State[i].Position).GetSafeNormal() * InSegments[i].Length;
-            State[i].Rotation = UKismetMathLibrary::FindLookAtRotation(State[i].Position, State[i + 1].Position);
+            State[i + 1].Location = State[i].Location + (State[i + 1].Location - State[i].Location).GetSafeNormal() * InSegments[i].Length;
+            State[i].Rotation = UKismetMathLibrary::FindLookAtRotation(State[i].Location, State[i + 1].Location);
         }
 
         Iteration++;
@@ -403,33 +403,33 @@ TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_FABRIK_IK(const FVector& InOrig
 
 
 // CCD IK
-TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_CCD_IK(const FVector& InOriginPosition, const FVector& InTargetPosition, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, int32 InMaxIterations, float InTollerance)
+TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_CCD_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, int32 InMaxIterations, float InTollerance)
 {
     TArray<FMPAS_LimbSegmentState> State = InCurrentState;
 
-    State[0].Position = InOriginPosition;
+    State[0].Location = InOriginLocation;
 
-    // Initial position recalculation, handling cases, where target position didn't change, but the origin position did
+    // Initial location recalculation, handling cases, where target location didn't change, but the origin location did
     for (int32 j = 1; j < State.Num(); j++)
-        State[j].Position = State[j - 1].Position + UKismetMathLibrary::GetForwardVector(State[j - 1].Rotation) * InSegments[j - 1].Length;
+        State[j].Location = State[j - 1].Location + UKismetMathLibrary::GetForwardVector(State[j - 1].Rotation) * InSegments[j - 1].Length;
    
     size_t Iteration = 0;
-    while ((Iteration < InMaxIterations) && ( (State[State.Num() - 1].Position - InTargetPosition).Size() > InTollerance) )
+    while ((Iteration < InMaxIterations) && ( (State[State.Num() - 1].Location - InTargetLocation).Size() > InTollerance) )
     {
         // Main CCD pass
         for (int32 i = State.Num() - 2; i >= 0; i--)
         {   
-            State[i].Rotation = UKismetMathLibrary::ComposeRotators(UKismetMathLibrary::NormalizedDeltaRotator(UKismetMathLibrary::FindLookAtRotation(State[i].Position, State[State.Num() - 1].Position), UKismetMathLibrary::FindLookAtRotation(State[i].Position, InTargetPosition)), State[i].Rotation);
+            State[i].Rotation = UKismetMathLibrary::ComposeRotators(UKismetMathLibrary::NormalizedDeltaRotator(UKismetMathLibrary::FindLookAtRotation(State[i].Location, State[State.Num() - 1].Location), UKismetMathLibrary::FindLookAtRotation(State[i].Location, InTargetLocation)), State[i].Rotation);
 
-            // Forward pass to recalculate segment positions
+            // Forward pass to recalculate segment locations
             for (int32 j = 1; j < State.Num(); j++)
-                State[j].Position = State[j - 1].Position + UKismetMathLibrary::GetForwardVector(State[j - 1].Rotation) * InSegments[j - 1].Length;
+                State[j].Location = State[j - 1].Location + UKismetMathLibrary::GetForwardVector(State[j - 1].Rotation) * InSegments[j - 1].Length;
         }
 
         Iteration++;
     }
 
-    if ((State[State.Num() - 1].Position - InTargetPosition).Size() <= InTollerance)
+    if ((State[State.Num() - 1].Location - InTargetLocation).Size() <= InTollerance)
         return State;
 
     return InCurrentState;
@@ -437,36 +437,36 @@ TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_CCD_IK(const FVector& InOriginP
 
 
 // PoleFABRIK IK - custom version of FABRIK IK, sligtly slower, but implements support for pole targets, making it the most usable algorithm ot of the ones presented here
-TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_PoleFABRIK_IK(const FVector& InOriginPosition, const FVector& InTargetPosition, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, const TArray<FVector>& InPoleTargets, int32 InMaxIterations, float InTollerance, const FVector& InUpVector)
+TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_PoleFABRIK_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, const TArray<FVector>& InPoleTargets, int32 InMaxIterations, float InTollerance, const FVector& InUpVector)
 {
     TArray<FMPAS_LimbSegmentState> State = InCurrentState;
 
     // Reinitiating state to match pole targets
 
-    State[0].Position = InOriginPosition;
+    State[0].Location = InOriginLocation;
     for (int32 i = 0; i < InSegments.Num(); i++)
-        State[i + 1].Position = State[i].Position + (InPoleTargets[i] - State[i].Position).GetSafeNormal() * InSegments[i].Length;
+        State[i + 1].Location = State[i].Location + (InPoleTargets[i] - State[i].Location).GetSafeNormal() * InSegments[i].Length;
 
     // FABRIK iterating
-    // Solved positions are projected onto a solution plane (see ProjectPositionOnToSolutionPlane description) to keep the movement naturall
+    // Solved locationss are projected onto a solution plane (see ProjectLocationOnToSolutionPlane description) to keep the movement naturall
 
     size_t Iteration = 0;
-    while ((Iteration < InMaxIterations) && (((State[State.Num() - 1].Position - InTargetPosition).Size() > InTollerance) || ((State[0].Position - InOriginPosition).Size() > InTollerance * 0.1f)))
+    while ((Iteration < InMaxIterations) && (((State[State.Num() - 1].Location - InTargetLocation).Size() > InTollerance) || ((State[0].Location - InOriginLocation).Size() > InTollerance * 0.1f)))
     {
         // Backward pass
-        State[State.Num() - 1].Position = InTargetPosition;
+        State[State.Num() - 1].Location = InTargetLocation;
         for (size_t i = State.Num() - 1; i > 0; i--)
         {
-            State[i - 1].Position = ProjectPositionOnToSolutionPlane(State[i].Position + (State[i - 1].Position - State[i].Position).GetSafeNormal() * InSegments[i - 1].Length, InOriginPosition, InTargetPosition, InPoleTargets[i - 1]);
-            State[i - 1].Rotation = UKismetMathLibrary::FindLookAtRotation(State[i - 1].Position, State[i].Position);
+            State[i - 1].Location = ProjectLocationOnToSolutionPlane(State[i].Location + (State[i - 1].Location - State[i].Location).GetSafeNormal() * InSegments[i - 1].Length, InOriginLocation, InTargetLocation, InPoleTargets[i - 1]);
+            State[i - 1].Rotation = UKismetMathLibrary::FindLookAtRotation(State[i - 1].Location, State[i].Location);
         }
 
         // Forward pass
-        State[0].Position = InOriginPosition;
+        State[0].Location = InOriginLocation;
         for (size_t i = 0; i < State.Num() - 2; i++)
         {
-            State[i + 1].Position = ProjectPositionOnToSolutionPlane(State[i].Position + (State[i + 1].Position - State[i].Position).GetSafeNormal() * InSegments[i].Length, InOriginPosition, InTargetPosition, InPoleTargets[i + 1]);
-            State[i].Rotation = UKismetMathLibrary::FindLookAtRotation(State[i].Position, State[i + 1].Position);
+            State[i + 1].Location = ProjectLocationOnToSolutionPlane(State[i].Location + (State[i + 1].Location - State[i].Location).GetSafeNormal() * InSegments[i].Length, InOriginLocation, InTargetLocation, InPoleTargets[i + 1]);
+            State[i].Rotation = UKismetMathLibrary::FindLookAtRotation(State[i].Location, State[i + 1].Location);
         }
 
         Iteration++;
@@ -477,7 +477,7 @@ TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_PoleFABRIK_IK(const FVector& In
 
 
 // Recalculating segment roll rotation
-void UMPAS_Limb::RecalculateRoll(TArray<FMPAS_LimbSegmentState>& InOutState, float InLimbRoll, const FVector& InOriginPosition, const FVector& InTargetPosition, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FVector>& InPoleTargets, const FVector& InUpVector)
+void UMPAS_Limb::RecalculateRoll(TArray<FMPAS_LimbSegmentState>& InOutState, float InLimbRoll, const FVector& InOriginLocation, const FVector& InTargetLocaiton, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FVector>& InPoleTargets, const FVector& InUpVector)
 {
     // Segment roll recalculation
     for (int32 i = 0; i < InSegments.Num(); i++)
@@ -490,12 +490,12 @@ void UMPAS_Limb::RecalculateRoll(TArray<FMPAS_LimbSegmentState>& InOutState, flo
         // General case
         if (i > 0)
         {
-            FVector OriginToStart = InOutState[i].Position - InOriginPosition;
-            FVector OriginToEnd = InOutState[i].Position + InOutState[i].Rotation.Vector() * InSegments[i].Length - InOriginPosition;
+            FVector OriginToStart = InOutState[i].Location - InOriginLocation;
+            FVector OriginToEnd = InOutState[i].Location + InOutState[i].Rotation.Vector() * InSegments[i].Length - InOriginLocation;
 
             SolutionPlaneNormal = UKismetMathLibrary::Cross_VectorVector(OriginToStart, OriginToEnd).GetSafeNormal();
 
-            TargetDirection = (InOutState[i].Position + InOutState[i].Position + InOutState[i].Rotation.Vector() * InSegments[i].Length) / 2.f - InOriginPosition;
+            TargetDirection = (InOutState[i].Location + InOutState[i].Location + InOutState[i].Rotation.Vector() * InSegments[i].Length) / 2.f - InOriginLocation;
         }
 
         // First segment case
@@ -534,8 +534,8 @@ FVector UMPAS_Limb::GetLimbTarget()
             Target = TargetComponent->GetComponentLocation();
         break;
 
-    case EMPAS_LimbTargetType::TargetPositionStack:
-        Target = CalculatePositionStackValue(TargetStackID);
+    case EMPAS_LimbTargetType::TargetVectorStack:
+        Target = CalculateVectorStackValue(TargetStackID);
         break;
         
     default: break;
@@ -568,12 +568,12 @@ void UMPAS_Limb::InitRigElement(class UMPAS_Handler* InHandler)
 {
     Super::InitRigElement(InHandler);
 
-    if (TargetType == EMPAS_LimbTargetType::TargetPositionStack)
-        TargetStackID = RegisterPositionStack("LimbTarget");
+    if (TargetType == EMPAS_LimbTargetType::TargetVectorStack)
+        TargetStackID = RegisterVectorStack("LimbTarget");
 
     for (auto& Pole: PoleTargets)
-        if (Pole.Value.PositionMode == EMPAS_LimbPoleTargetPositionMode::PoleTargetPositionStack)
-            Pole.Value.STACK_PositionStackID = RegisterPositionStack("PoleTarget_" + UKismetStringLibrary::Conv_IntToString(Pole.Key));
+        if (Pole.Value.LocationMode == EMPAS_LimbPoleTargetLocationMode::PoleTargetLocationStack)
+            Pole.Value.STACK_VectorStackID = RegisterVectorStack("PoleTarget_" + UKismetStringLibrary::Conv_IntToString(Pole.Key));
 
     InitLimb();
 
@@ -623,12 +623,12 @@ void UMPAS_Limb::UpdateRigElement(float DeltaTime)
 // PHYSICS MODEL
 
 // Called when physics model is enabled, applies position and rotation of physics elements to the rig element
-void UMPAS_Limb::ApplyPhysicsModelPositionAndRotation_Implementation(float DeltaTime)
+void UMPAS_Limb::ApplyPhysicsModelLocationAndRotation_Implementation(float DeltaTime)
 {
     for(int32 i = 0; i < PhysicsElementsConfiguration.Num(); i++)
     {
         FMPAS_LimbSegmentState NewState;
-        NewState.Position = CalculatePositionStackValue(PhysicsElementsConfiguration[i].PositionStackID);
+        NewState.Location = CalculateVectorStackValue(PhysicsElementsConfiguration[i].PositionStackID);
         NewState.Rotation = CalculateRotationStackValue(PhysicsElementsConfiguration[i].RotationStackID);
 
         WriteSegmentState(i, NewState);
@@ -642,7 +642,7 @@ FTransform UMPAS_Limb::GetDesiredPhysicsElementTransform_Implementation(int32 Ph
     
     if (CurrentState.IsValidIndex(PhysicsElementID))
     {
-        LimbSegmentTransform.SetLocation(CurrentState[PhysicsElementID].Position);
+        LimbSegmentTransform.SetLocation(CurrentState[PhysicsElementID].Location);
         LimbSegmentTransform.SetRotation(FQuat(CurrentState[PhysicsElementID].Rotation));
         LimbSegmentTransform.SetScale3D(FVector(1, 1, 1));
     }
@@ -680,11 +680,11 @@ FRotator UMPAS_Limb::GetRotationBetweenVectors(const FVector& InVector_1, const 
 
 }
 
-// Projects position (location) vector on to a "solution plane" (plane constructed from 3 points: Limb Origin, Limb Target and Pole Target)
-FVector UMPAS_Limb::ProjectPositionOnToSolutionPlane(const FVector& InPosition, const FVector& InLimbOrigin, const FVector& InLimbTarget, const FVector& InPoleTarget)
+// Projects location vector on to a "solution plane" (plane constructed from 3 points: Limb Origin, Limb Target and Pole Target)
+FVector UMPAS_Limb::ProjectLocationOnToSolutionPlane(const FVector& InLocation, const FVector& InLimbOrigin, const FVector& InLimbTarget, const FVector& InPoleTarget)
 {
     FVector PlaneNormal = UKismetMathLibrary::Cross_VectorVector(InLimbTarget - InLimbOrigin, InPoleTarget - InLimbOrigin).GetSafeNormal();
-    FVector Projection = UKismetMathLibrary::ProjectVectorOnToPlane(InPosition - InLimbOrigin, PlaneNormal);
+    FVector Projection = UKismetMathLibrary::ProjectVectorOnToPlane(InLocation - InLimbOrigin, PlaneNormal);
 
     return Projection + InLimbOrigin;
 }

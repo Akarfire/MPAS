@@ -41,7 +41,7 @@ class MPAS_API UMPAS_SpiderWalk_Idle_State : public UMPAS_IntentionStateBase
 
 public:
 
-	// How long it takes the spider to enter the resting position
+	// How long it takes the spider to enter the resting location
 	float IdleTimerDuration = 0.5f;
 
 	// Maximum core turn speed
@@ -159,7 +159,7 @@ public:
 	// Maximum distance on which the core is brought out
 	float MaxCoreOffset = 200.f;
 
-	// How hight above the ground shold the core be positioned
+	// How hight above the ground shold the core be located
 	float CoreElevation = 250.f;
 
 	// How long should be the trace, that looks for the ground
@@ -283,7 +283,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Walking")
 	float MaxCoreOffset = 200.f;
 
-	// How hight above the ground shold the core be positioned
+	// How hight above the ground shold the core be located
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Walking")
 	float CoreElevation = 250.f;
 

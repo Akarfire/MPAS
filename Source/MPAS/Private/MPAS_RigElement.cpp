@@ -39,31 +39,31 @@ void UMPAS_RigElement::InitRigElement(class UMPAS_Handler* InHandler)
 {
 	Handler = InHandler;
 
-	// Registering default position stack and default layers
-	RegisterPositionStack("Default");
-	RegisterPositionLayer(0, "ParentPosition", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Average, true); // This layer contains world space position of the parent element
-	RegisterPositionLayer(0, "SelfPosition", EMPAS_LayerBlendingMode::Add, EMPAS_LayerCombinationMode::Average, true); // This layer contains position of the element relative to it's parent
+	// Registering default location stack and default layers
+	RegisterVectorStack("DefaultLocation");
+	RegisterVectorLayer(0, "ParentLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Average, true); // This layer contains world space location of the parent element
+	RegisterVectorLayer(0, "SelfLocation", EMPAS_LayerBlendingMode::Add, EMPAS_LayerCombinationMode::Average, true); // This layer contains locaiton of the element relative to it's parent
 
 	// Registering default rotation stack and default layers 
-	RegisterRotationStack("Default");
+	RegisterRotationStack("DefaultRotation");
 	RegisterRotationLayer(0, "ParentRotation", EMPAS_LayerBlendingMode::Normal, true); // This layer contains world space rotation of the parent element
 	RegisterRotationLayer(0, "SelfRotation", EMPAS_LayerBlendingMode::Add, true); // This layer contains rotation of the element relative to it's parent
 
 	// Registering parameters
 
-	// Modifies (Multiplies) the speed of the positional interpolation of each element in the rig
-	if (!InHandler->IsFloatParameterValid("ORIENTATION_PositionInterpolationMultiplier"))
-		GetHandler()->CreateFloatParameter("ORIENTATION_PositionInterpolationMultiplier", 1.0f);
+	// Modifies (Multiplies) the speed of the locational interpolation of each element in the rig
+	if (!InHandler->IsFloatParameterValid("ORIENTATION_LocationInterpolationMultiplier"))
+		GetHandler()->CreateFloatParameter("ORIENTATION_LocationInterpolationMultiplier", 1.0f);
 
 	// Modifies (Multiplies) the speed of the rotational interpolation of each element in the rig
 	if (!InHandler->IsFloatParameterValid("ORIENTATION_RotationInterpolationMultiplier"))
 		GetHandler()->CreateFloatParameter("ORIENTATION_RotationInterpolationMultiplier", 1.0f);
 	
-	GetHandler()->SubscribeToParameter("ORIENTATION_PositionInterpolationMultiplier", this, "OnInterpolationMultiplierChanged");
+	GetHandler()->SubscribeToParameter("ORIENTATION_LocationInterpolationMultiplier", this, "OnInterpolationMultiplierChanged");
 	GetHandler()->SubscribeToParameter("ORIENTATION_RotationInterpolationMultiplier", this, "OnInterpolationMultiplierChanged");
 
-	// Storing default value of previous frame position to prevent velocity spike on the first measurement
-	PreviousFramePosition = GetComponentLocation();
+	// Storing default value of previous frame location to prevent velocity spike on the first measurement
+	PreviousFrameLocation = GetComponentLocation();
 
 	// Default activation/deactivation
 	if (DefaultActive)
@@ -85,7 +85,7 @@ void UMPAS_RigElement::LinkRigElement(class UMPAS_Handler* InHandler)
 	if (ParentElementName == "Core")
 	{
 		IsCoreElement = true;
-		SetPositionSourceValue(0, 1, this, GetComponentLocation());
+		SetVectorSourceValue(0, 1, this, GetComponentLocation());
 		SetRotationSourceValue(0, 1, this, GetComponentRotation());
 	}
 	
@@ -94,18 +94,18 @@ void UMPAS_RigElement::LinkRigElement(class UMPAS_Handler* InHandler)
 	{
 		IsCoreElement = false;
 
-		// Parent position and rotation initial cache
+		// Parent location and rotation initial cache
 		ParentElement = RigData[ParentElementName].RigElement;
-		SetPositionSourceValue(0, 0, ParentElement, ParentElement->GetComponentLocation());
+		SetVectorSourceValue(0, 0, ParentElement, ParentElement->GetComponentLocation());
 		SetRotationSourceValue(0, 0, ParentElement, ParentElement->GetComponentRotation());
 
-		// Self position and rotation fetching
+		// Self location and rotation fetching
 		
-		// Setting initial position / rotation
+		// Setting initial location / rotation
 		InitialSelfTransform.SetLocation( UKismetMathLibrary::Quat_UnrotateVector(ParentElement->GetComponentRotation().Quaternion(), GetComponentLocation() - ParentElement->GetComponentLocation()) );
 		InitialSelfTransform.SetRotation( UKismetMathLibrary::NormalizedDeltaRotator(GetComponentRotation(), ParentElement->GetComponentRotation()).Quaternion() );
 
-		SetPositionSourceValue(0, 1, this, UKismetMathLibrary::Quat_RotateVector(ParentElement->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()) );
+		SetVectorSourceValue(0, 1, this, UKismetMathLibrary::Quat_RotateVector(ParentElement->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()) );
 		SetRotationSourceValue(0, 1, this, FRotator(InitialSelfTransform.GetRotation()));
 	}
 
@@ -120,10 +120,10 @@ void UMPAS_RigElement::InitPhysicsModel(const TArray<UMPAS_PhysicsModelElement*>
 
 	for (int32 i = 0; i < PhysicsElements.Num(); i++)
 	{
-		PhysicsElementsConfiguration[i].PositionStackID = RegisterPositionStack("PhysicsModelStack_" + UKismetStringLibrary::Conv_IntToString(i));
+		PhysicsElementsConfiguration[i].PositionStackID = RegisterVectorStack("PhysicsModelStack_" + UKismetStringLibrary::Conv_IntToString(i));
 		PhysicsElementsConfiguration[i].RotationStackID = RegisterRotationStack("PhysicsModelStack_" + UKismetStringLibrary::Conv_IntToString(i));
 
-		RegisterPositionLayer(PhysicsElementsConfiguration[i].PositionStackID, "PhysicsElementLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, true);
+		RegisterVectorLayer(PhysicsElementsConfiguration[i].PositionStackID, "PhysicsElementLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, true);
 		RegisterRotationLayer(PhysicsElementsConfiguration[i].RotationStackID, "PhysicsElementRotation", EMPAS_LayerBlendingMode::Normal, true);
 	}
 
@@ -131,11 +131,11 @@ void UMPAS_RigElement::InitPhysicsModel(const TArray<UMPAS_PhysicsModelElement*>
 }
 
 
-// NOTIFICATION Called when ORIENTATION_PositionInterpolationMultiplier or ORIENTATION_RotationInterpolationMultiplier parameter value is changed
+// NOTIFICATION Called when ORIENTATION_LocationInterpolationMultiplier or ORIENTATION_RotationInterpolationMultiplier parameter value is changed
 void UMPAS_RigElement::OnInterpolationMultiplierChanged(FName InParameterName)
 {
-	if (InParameterName == "ORIENTATION_PositionInterpolationMultiplier")
-		PositionInterpolationMultiplier = GetHandler()->GetFloatParameter(InParameterName);
+	if (InParameterName == "ORIENTATION_LocationInterpolationMultiplier")
+		LocationInterpolationMultiplier = GetHandler()->GetFloatParameter(InParameterName);
 
 	else if (InParameterName == "ORIENTATION_RotationInterpolationMultiplier")
 		RotationInterpolationMultiplier = GetHandler()->GetFloatParameter(InParameterName);
@@ -145,25 +145,25 @@ void UMPAS_RigElement::OnInterpolationMultiplierChanged(FName InParameterName)
 
 void UMPAS_RigElement::UpdateRigElement(float DeltaTime)
 {
-	// Non-Core elements have their parent position sampled from the parent element every frame
+	// Non-Core elements have their parent location sampled from the parent element every frame
 	if (!IsCoreElement)
 	{
 		// Sampling parent transform
-		SetPositionSourceValue(0, 0, ParentElement, ParentElement->GetComponentLocation());
+		SetVectorSourceValue(0, 0, ParentElement, ParentElement->GetComponentLocation());
 		SetRotationSourceValue(0, 0, ParentElement, ParentElement->GetComponentRotation());
 
-		// Updating self position based on new parent rotation
-		SetPositionSourceValue(0, 1, this, UKismetMathLibrary::Quat_RotateVector(ParentElement->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()) );
+		// Updating self location based on new parent rotation
+		SetVectorSourceValue(0, 1, this, UKismetMathLibrary::Quat_RotateVector(ParentElement->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()) );
 	}
 
 	// Applying physics model if its enaled
 	if (PhysicsModelEnabled && PhysicsElementsConfiguration.Num() > 0)
-		ApplyPhysicsModelPositionAndRotation(DeltaTime);
+		ApplyPhysicsModelLocationAndRotation(DeltaTime);
 
 	// If physics model is not enabled, then we apply normal positioning method
 	else if (PositioningMode == EMPAS_ElementPositionMode::Normal)
 	{
-		ApplyDefaultPositionStack(DeltaTime);
+		ApplyDefaultLocationStack(DeltaTime);
 		ApplyDefaultRotationStack(DeltaTime);
 	}
 
@@ -174,50 +174,50 @@ void UMPAS_RigElement::UpdateRigElement(float DeltaTime)
 	}
 
 	// Calculating velocity
-	CachedVelocity = (GetComponentLocation() - PreviousFramePosition) / DeltaTime;
-	PreviousFramePosition = GetComponentLocation();
+	CachedVelocity = (GetComponentLocation() - PreviousFrameLocation) / DeltaTime;
+	PreviousFrameLocation = GetComponentLocation();
 
 	OnUpdateRigElement(DeltaTime);
 }
 
 
-// POSITION LAYERS
+// VECTOR LAYERS
 
-// Applies the position stacks to the element's world location
-void UMPAS_RigElement::ApplyDefaultPositionStack(float DeltaTime)
+// Applies the default vector stack to the element's world location
+void UMPAS_RigElement::ApplyDefaultLocationStack(float DeltaTime)
 {
-	FVector StackValue = CalculatePositionStackValue(0);
+	FVector StackValue = CalculateVectorStackValue(0);
 
 	FVector NewLocation = StackValue;
 	if (LocationInterpolationSpeed != 0)
-		NewLocation = UKismetMathLibrary::VInterpTo(GetComponentLocation(), StackValue, DeltaTime, LocationInterpolationSpeed * PositionInterpolationMultiplier);
+		NewLocation = UKismetMathLibrary::VInterpTo(GetComponentLocation(), StackValue, DeltaTime, LocationInterpolationSpeed * LocationInterpolationMultiplier);
 
 	SetWorldLocation(NewLocation);
 }
 
-// Calculates the final position of the given position stack
-FVector UMPAS_RigElement::CalculatePositionStackValue(int32 InPositionStackID)
+// Calculates the final vector of the given vector stack
+FVector UMPAS_RigElement::CalculateVectorStackValue(int32 InVectorStackID)
 {
-	FVector FinalPosition;
+	FVector FinalVector;
 
-	for (auto& Layer : LocationStacks[InPositionStackID])
+	for (auto& Layer : VectorStacks[InVectorStackID])
 	{
-		FVector LayerValue = CalculatePositionLayerValue(Layer);
+		FVector LayerValue = CalculateVectorLayerValue(Layer);
 
 		if (LayerValue != FVector(0, 0, 0))
 		{
 			switch (Layer.BlendingMode)
 			{
 			case EMPAS_LayerBlendingMode::Normal:
-				FinalPosition = LayerValue;
+				FinalVector = LayerValue;
 				break;
 			
 			case EMPAS_LayerBlendingMode::Add:
-				FinalPosition += LayerValue;
+				FinalVector += LayerValue;
 				break;
 
 			case EMPAS_LayerBlendingMode::Multiply:
-				FinalPosition *= LayerValue;
+				FinalVector *= LayerValue;
 				break;
 
 			default: break;
@@ -225,18 +225,18 @@ FVector UMPAS_RigElement::CalculatePositionStackValue(int32 InPositionStackID)
 		}
 	}
 
-	return FinalPosition;
+	return FinalVector;
 }
 
-// Calculates the final position of the given position layer
-FVector UMPAS_RigElement::CalculatePositionLayerValue(const FMPAS_VectorLayer InLayer)
+// Calculates the final vector of the given vector layer
+FVector UMPAS_RigElement::CalculateVectorLayerValue(const FMPAS_VectorLayer InLayer)
 {
-	FVector OutPosition = FVector(0, 0, 0);
+	FVector OutVector = FVector(0, 0, 0);
 	int32 ActiveElementCount = 0;
 
 
-	FVector PositionSum = FVector(0, 0, 0);
-	FVector PositionM = FVector(1, 1, 1);
+	FVector VectorSum = FVector(0, 0, 0);
+	FVector VectorM = FVector(1, 1, 1);
 
 	switch (InLayer.CombinationMode)
 	{
@@ -247,12 +247,12 @@ FVector UMPAS_RigElement::CalculatePositionLayerValue(const FMPAS_VectorLayer In
 		{
 			bool CurrentActive = InLayer.ForceAllElementsActive || Source.Key->GetRigElementActive();
 
-			PositionSum += Source.Value * CurrentActive;
+			VectorSum += Source.Value * CurrentActive;
 			ActiveElementCount += CurrentActive;
 		}
 
 		if (ActiveElementCount > 0)
-			OutPosition = PositionSum / ActiveElementCount;
+			OutVector = VectorSum / ActiveElementCount;
 			
 		break;
 
@@ -262,11 +262,11 @@ FVector UMPAS_RigElement::CalculatePositionLayerValue(const FMPAS_VectorLayer In
 		{
 			bool CurrentActive = InLayer.ForceAllElementsActive || Source.Key->GetRigElementActive();
 
-			PositionSum += Source.Value * CurrentActive;
+			VectorSum += Source.Value * CurrentActive;
 			ActiveElementCount += CurrentActive;
 		}
 
-		OutPosition = PositionSum;
+		OutVector = VectorSum;
 		break;
 
 	case EMPAS_LayerCombinationMode::Multiply:
@@ -277,103 +277,103 @@ FVector UMPAS_RigElement::CalculatePositionLayerValue(const FMPAS_VectorLayer In
 
 			ActiveElementCount += CurrentActive;
 			if (CurrentActive)
-				PositionM *= Source.Value;
+				VectorM *= Source.Value;
 		}
 
-		OutPosition = PositionM;
+		OutVector = VectorM;
 		break;
 	
 	default:
-		OutPosition = FVector();
+		OutVector = FVector();
 		break;
 	}
 
-	return OutPosition;
+	return OutVector;
 }
 
 
-// Registers a new position stack and returns it's ID, returns an existing ID if the stack is already registered
-int32 UMPAS_RigElement::RegisterPositionStack(const FString& InStackName)
+// Registers a new vector stack and returns it's ID, returns an existing ID if the stack is already registered
+int32 UMPAS_RigElement::RegisterVectorStack(const FString& InStackName)
 {
-	if (LocationStackNames.Contains(InStackName))
-		return LocationStackNames[InStackName];
+	if (VectorStackNames.Contains(InStackName))
+		return VectorStackNames[InStackName];
 
 	TArray<FMPAS_VectorLayer> NewStack;
 
-	int32 StackID = LocationStacks.Add(NewStack);
-	LocationStackNames.Add(InStackName, StackID);
+	int32 StackID = VectorStacks.Add(NewStack);
+	VectorStackNames.Add(InStackName, StackID);
 
 	TMap<FString, int32> NewStackLayerNames;
-	LocationLayerNames.Add(NewStackLayerNames);
+	VectorLayerNames.Add(NewStackLayerNames);
 
 	return StackID;
 }
 
-// Registers a new position layer in the given stack and returns it's ID, returns an existing ID if the layer is already registered, returns -1 if Stack does not exist
-int32 UMPAS_RigElement::RegisterPositionLayer(int32 InPositionStackID, const FString& InLayerName, EMPAS_LayerBlendingMode InBlendingMode, EMPAS_LayerCombinationMode InCombinationMode, bool InForceAllElementsActive)
+// Registers a new vector layer in the given stack and returns it's ID, returns an existing ID if the layer is already registered, returns -1 if Stack does not exist
+int32 UMPAS_RigElement::RegisterVectorLayer(int32 InVectorStackID, const FString& InLayerName, EMPAS_LayerBlendingMode InBlendingMode, EMPAS_LayerCombinationMode InCombinationMode, bool InForceAllElementsActive)
 {
-	if (InPositionStackID < 0 || InPositionStackID >= LocationStacks.Num())
+	if (InVectorStackID < 0 || InVectorStackID >= VectorStacks.Num())
 		return -1;
 
-	if (LocationLayerNames[InPositionStackID].Contains(InLayerName))
-		return LocationLayerNames[InPositionStackID][InLayerName];
+	if (VectorLayerNames[InVectorStackID].Contains(InLayerName))
+		return VectorLayerNames[InVectorStackID][InLayerName];
 
 	FMPAS_VectorLayer NewLayer(InBlendingMode, InCombinationMode, InForceAllElementsActive);
 
-	int32 LayerID = LocationStacks[InPositionStackID].Add(NewLayer);
-	LocationLayerNames[InPositionStackID].Add(InLayerName, LayerID);
+	int32 LayerID = VectorStacks[InVectorStackID].Add(NewLayer);
+	VectorLayerNames[InVectorStackID].Add(InLayerName, LayerID);
 
 	return LayerID;
 }
 
 
 // Returns the ID of the given stack, -1 if stack not found
-int32 UMPAS_RigElement::GetPositionStackID(const FString& InStackName)
+int32 UMPAS_RigElement::GetVectorStackID(const FString& InStackName)
 {
-	if (!LocationStackNames.Contains(InStackName))
+	if (!VectorStackNames.Contains(InStackName))
 		return -1;
 
-	return LocationStackNames[InStackName];
+	return VectorStackNames[InStackName];
 }
 
 // Returns the ID of the given layer in the given stack, -1 if stack or layer not found
-int32 UMPAS_RigElement::GetPositionLayerID(int32 InPositionStackID, const FString& InLayerName)
+int32 UMPAS_RigElement::GetVectorLayerID(int32 InVectorStackID, const FString& InLayerName)
 {
-	if (InPositionStackID < 0 || InPositionStackID >= LocationStacks.Num())
+	if (InVectorStackID < 0 || InVectorStackID >= VectorStacks.Num())
 		return -1;
 
-	if (!LocationLayerNames[InPositionStackID].Contains(InLayerName))
+	if (!VectorLayerNames[InVectorStackID].Contains(InLayerName))
 		return -1;
 
-	return LocationLayerNames[InPositionStackID][InLayerName];
+	return VectorLayerNames[InVectorStackID][InLayerName];
 }
 
 
 
-// Sets the value of a position source in the given Stack and Layer, if succeded: returns true, false - overwise
-bool UMPAS_RigElement::SetPositionSourceValue(int32 InPositionStackID, int32 InPositionLayerID, UMPAS_RigElement* InSourceElement, FVector InSourceValue)
+// Sets the value of a vector source in the given Stack and Layer, if succeded: returns true, false - overwise
+bool UMPAS_RigElement::SetVectorSourceValue(int32 InVectorStackID, int32 InVectorLayerID, UMPAS_RigElement* InSourceElement, FVector InSourceValue)
 {
-	if (InPositionStackID < 0 || InPositionStackID >= LocationStacks.Num())
+	if (InVectorStackID < 0 || InVectorStackID >= VectorStacks.Num())
 		return false;
 
-	if (InPositionLayerID < 0 || InPositionLayerID >= LocationStacks[InPositionStackID].Num())
+	if (InVectorLayerID < 0 || InVectorLayerID >= VectorStacks[InVectorStackID].Num())
 		return false;
 
-	LocationStacks[InPositionStackID][InPositionLayerID].LayerElements.Add(InSourceElement, InSourceValue);
+	VectorStacks[InVectorStackID][InVectorLayerID].LayerElements.Add(InSourceElement, InSourceValue);
 	return true;
 }
 
 
-// Removes the value of a position source in the given Stack and Layer, if succeded: returns true, false - overwise
-bool UMPAS_RigElement::RemovePositionSourceValue(int32 InPositionStackID, int32 InPositionLayerID, UMPAS_RigElement* InSourceElement)
+// Removes the value of a vector source in the given Stack and Layer, if succeded: returns true, false - overwise
+bool UMPAS_RigElement::RemoveVectorSourceValue(int32 InVectorStackID, int32 InVectorLayerID, UMPAS_RigElement* InSourceElement)
 {
-	if (InPositionStackID < 0 || InPositionStackID >= LocationStacks.Num())
+	if (InVectorStackID < 0 || InVectorStackID >= VectorStacks.Num())
 		return false;
 
-	if (InPositionLayerID < 0 || InPositionLayerID >= LocationStacks[InPositionStackID].Num())
+	if (InVectorLayerID < 0 || InVectorLayerID >= VectorStacks[InVectorStackID].Num())
 		return false;
 
-	return LocationStacks[InPositionStackID][InPositionLayerID].LayerElements.Remove(InSourceElement) > 0;
+	return VectorStacks[InVectorStackID][InVectorLayerID].LayerElements.Remove(InSourceElement) > 0;
 }
 
 
@@ -587,14 +587,14 @@ void UMPAS_RigElement::SetPhysicsModelEnabled(bool InEnabled)
 }
 
 // Called when physics model is enabled, applies position and rotation of physics elements to the rig element
-void UMPAS_RigElement::ApplyPhysicsModelPositionAndRotation_Implementation(float DeltaTime) 
+void UMPAS_RigElement::ApplyPhysicsModelLocationAndRotation_Implementation(float DeltaTime) 
 {
 	if(PhysicsElements.IsValidIndex(0))
 		if (PhysicsElements[0])
 		{
 			//SetWorldLocation( UKismetMathLibrary::VInterpTo(GetComponentLocation(), CalculatePositionStackValue(PhysicsElementsConfiguration[0].PositionStackID), DeltaTime, PhysicsElementsConfiguration[0].PhysicsModelPositionInterpolationSpeed ));
 			//SetWorldRotation( UKismetMathLibrary::RInterpTo(GetComponentRotation(), CalculateRotationStackValue(PhysicsElementsConfiguration[0].RotationStackID), DeltaTime, PhysicsElementsConfiguration[0].PhysicsModelRotationInterpolationSpeed ));
-			SetWorldLocation(CalculatePositionStackValue(PhysicsElementsConfiguration[0].PositionStackID));
+			SetWorldLocation(CalculateVectorStackValue(PhysicsElementsConfiguration[0].PositionStackID));
 			SetWorldRotation(CalculateRotationStackValue(PhysicsElementsConfiguration[0].RotationStackID));
 		}
 }

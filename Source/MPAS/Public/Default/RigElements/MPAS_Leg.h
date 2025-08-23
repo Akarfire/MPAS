@@ -3,24 +3,24 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "MPAS_RigElement.h"
+#include "MPAS_MotionRigElement.h"
 #include "MPAS_Leg.generated.h"
 
 /**
  * 
  */
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
-class MPAS_API UMPAS_Leg : public UMPAS_RigElement
+class MPAS_API UMPAS_Leg : public UMPAS_MotionRigElement
 {
 	GENERATED_BODY()
 
 protected:
 
-	// The id of the position layer, registered in the parent element. The layer sets the position of the parent element to be at the average positon of all active legs
+	// The id of the location layer, registered in the parent element. The layer sets the location of the parent element to be at the average positon of all active legs
 	int32 LegEffectorLayerID;
 
-	// The id of the position layer, that sets the absolute position of the leg 
-	int32 SelfAbsolutePositionLayerID;
+	// The id of the location layer, that sets the absolute location of the leg 
+	int32 SelfAbsoluteLocationLayerID;
 
 	// Whether the leg is ready to make a step
 	bool ReadyToStep;
@@ -31,10 +31,10 @@ protected:
 	// Wether the leg has moved in current window (the time frame between CurrentLegGroup value changes)
 	bool HasMovedInCurrentWindow;
 
-	// Leg's target position relative to the the parent element
+	// Leg's target location relative to the the parent element
 	FVector LegTargetOffset;
 
-	// Leg's default position relative to the parent element
+	// Leg's default location relative to the parent element
 	FVector LegRestingPoseOffset;
 
 	// Effector Shift uses interpolation, THIS is the current value of Effector Shift
@@ -139,8 +139,8 @@ protected:
 	// Returns the vertical direction, relative to the host
 	FVector GetUpVector() { return FVector(0.f, 0.f, 1.f); };
 
-	// Returns leg's target position
-	FVector GetTargetPosition();
+	// Returns leg's target location
+	FVector GetTargetLocation();
 
 	// Checks whether the leg should make a step
 	bool ShouldStep();
@@ -151,9 +151,9 @@ protected:
 
 public:
 
-	// Casts a trace that finds a suitable foot position, (0, 0, 0) if failed
+	// Casts a trace that finds a suitable foot location, (0, 0, 0) if failed
 	UFUNCTION(BlueprintCallable)
-	FVector FootTrace(const FVector& StepTargetPosition);
+	FVector FootTrace(const FVector& StepTargetLocation);
 
 	// Returns initial leg's location relative to it's parent element
 	UFUNCTION(BlueprintCallable, BlueprintPure)
@@ -206,5 +206,5 @@ public:
 
 	// Calls FootTrace for debugging purposes
 	UFUNCTION(BlueprintCallable)
-	FVector DEBUG_FootTrace() { return FootTrace(GetTargetPosition()); }
+	FVector DEBUG_FootTrace() { return FootTrace(GetTargetLocation()); }
 };

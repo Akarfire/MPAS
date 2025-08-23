@@ -10,7 +10,7 @@
 
 // LAYERS
 
-// Blending mode for position/rotation/... layers in stacks
+// Blending mode for location/rotation/... layers in stacks
 UENUM(BlueprintType)
 enum class EMPAS_LayerBlendingMode : uint8
 {
@@ -107,18 +107,18 @@ protected:
 	// Parent element of this element, nullptr if Core Element
 	UMPAS_RigElement* ParentElement;
 
-	// Initial position and rotation of the element relative to it's parent
+	// Initial location and rotation of the element relative to it's parent
 	FTransform InitialSelfTransform;
 
 	// If this flag is set, then physics model constaint will be reactivated next frame
 	bool ReactivatePhysicsModelConstraintNextFrame;
 
 	// Cached parameter values
-	float PositionInterpolationMultiplier = 1.f;
+	float LocationInterpolationMultiplier = 1.f;
 	float RotationInterpolationMultiplier = 1.f;
 
 	// Velocity Calculation
-	FVector PreviousFramePosition;
+	FVector PreviousFrameLocation;
 	FVector CachedVelocity;
 
 public:	
@@ -142,11 +142,11 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Default")
 	bool IsCoreElement;
 
-	// Element's positioning mode: Noraml - keeps an offset from it's parent, default position stack is applied; Independent - stack values are not applied, the component is free to move
+	// Element's positioning mode: Normal - keeps an offset from it's parent, default location and rotation stacks are applied; Independent - stack values are not applied, the component is free to move
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default")
 	EMPAS_ElementPositionMode PositioningMode;
 
-	// Smooths out position changes, if set to 0, no interpolation is applied
+	// Smooths out location changes, if set to 0, no interpolation is applied
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Orientation")
 	float LocationInterpolationSpeed = 0.f;
 
@@ -159,7 +159,7 @@ protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 
-	// NOTIFICATION Called when ORIENTATION_PositionInterpolationMultiplier or ORIENTATION_RotationInterpolationMultiplier parameter value is changed
+	// NOTIFICATION Called when ORIENTATION_LocationInterpolationMultiplier or ORIENTATION_RotationInterpolationMultiplier parameter value is changed
 	void OnInterpolationMultiplierChanged(FName InParameterName);
 
 public:	
@@ -182,62 +182,74 @@ public:
 	FVector GetVelocity() { return CachedVelocity; }
 
 
+// POSITION DRIVER INTEGRATION
 
-// POSITION LAYERS
+	// Name of the Vector Stack that will receive location data from a Position Driver (if one is present)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|PositionDriving")
+	FString PositionDriverIntegration_LocationStackName = "DefaultLocation";
+
+	// Name of the Rotation Stack that will receive rotation data from a Position Driver (if one is present)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|PositionDriving")
+	FString PositionDriverIntegration_RotationStackName = "DefaultRotation";
+
+
+
+// VECTOR LAYERS
 protected:
 
-	// Stacks by layers of which the position of the element is determined
-	TArray<TArray<FMPAS_VectorLayer>> LocationStacks;
+	// Stacks of multi-purpose vector layers
+	TArray<TArray<FMPAS_VectorLayer>> VectorStacks;
 
 	// Name maps used to access Stacks and Layers by name (slower than ID)
-	TMap<FString, int32> LocationStackNames;
-	TArray<TMap<FString, int32>> LocationLayerNames;
+	TMap<FString, int32> VectorStackNames;
+	TArray<TMap<FString, int32>> VectorLayerNames;
 
 
 protected:
 
-	// Applies the default position stack to the element's world location
-	void ApplyDefaultPositionStack(float DeltaTime);
+	// Applies the default location stack to the element's world location
+	void ApplyDefaultLocationStack(float DeltaTime);
 
-	// Calculates the final position of the given position stack
-	FVector CalculatePositionStackValue(int32 InPositionStackID);
 
-	// Calculates the final position of the given position layer
-	FVector CalculatePositionLayerValue(const FMPAS_VectorLayer InLayer);
+	// Calculates the final vector of the given vector stack
+	FVector CalculateVectorStackValue(int32 InLocationStackID);
+
+	// Calculates the final vector of the given vector layer
+	FVector CalculateVectorLayerValue(const FMPAS_VectorLayer InLayer);
 
 
 public:
-	// Registers a new position stack and returns it's ID, returns an existing ID if the stack is already registered
-	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|PositionStacks")
-	int32 RegisterPositionStack(const FString& InStackName);
+	// Registers a new vector stack and returns it's ID, returns an existing ID if the stack is already registered
+	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|VectorStacks")
+	int32 RegisterVectorStack(const FString& InStackName);
 
-	// Registers a new position layer in the given stack and returns it's ID, returns an existing ID if the layer is already registered, returns -1 if Stack does not exist
-	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|PositionStacks")
-	int32 RegisterPositionLayer(int32 InPositionStackID, const FString& InLayerName, EMPAS_LayerBlendingMode InBlendingMode, EMPAS_LayerCombinationMode InCombinationMode, bool InForceAllElementsActive = false);
+	// Registers a new vector layer in the given stack and returns it's ID, returns an existing ID if the layer is already registered, returns -1 if Stack does not exist
+	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|VectorStacks")
+	int32 RegisterVectorLayer(int32 InVectorStackID, const FString& InLayerName, EMPAS_LayerBlendingMode InBlendingMode, EMPAS_LayerCombinationMode InCombinationMode, bool InForceAllElementsActive = false);
 
 
 	// Returns the ID of the given stack, -1 if stack not found
-	UFUNCTION(BlueprintPure, BlueprintCallable, Category="MPAS|RigElement|PositionStacks")
-	int32 GetPositionStackID(const FString& InStackName);
+	UFUNCTION(BlueprintPure, BlueprintCallable, Category="MPAS|RigElement|VectorStacks")
+	int32 GetVectorStackID(const FString& InStackName);
 
 	// Returns the ID of the given layer in the given stack, -1 if stack or layer not found
-	UFUNCTION(BlueprintPure, BlueprintCallable, Category="MPAS|RigElement|PositionStacks")
-	int32 GetPositionLayerID(int32 InPositionStackID, const FString& InLayerName);
+	UFUNCTION(BlueprintPure, BlueprintCallable, Category="MPAS|RigElement|VectorStacks")
+	int32 GetVectorLayerID(int32 InVectorStackID, const FString& InLayerName);
 
 
-	// Sets the value of a position source in the given Stack and Layer, if succeded: returns true, false - overwise
-	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|PositionStacks")
-	bool SetPositionSourceValue(int32 InPositionStackID, int32 InPositionLayerID, UMPAS_RigElement* InSourceElement, FVector InSourceValue);
+	// Sets the value of a vector source in the given Stack and Layer, if succeded: returns true, false - overwise
+	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|VectorStacks")
+	bool SetVectorSourceValue(int32 InVectorStackID, int32 InVectorLayerID, UMPAS_RigElement* InSourceElement, FVector InSourceValue);
 
-	// Removes the value of a position source in the given Stack and Layer, if succeded: returns true, false - overwise
-	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|PositionStacks")
-	bool RemovePositionSourceValue(int32 InPositionStackID, int32 InPositionLayerID, UMPAS_RigElement* InSourceElement);
+	// Removes the value of a vector source in the given Stack and Layer, if succeded: returns true, false - overwise
+	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|VectorStacks")
+	bool RemoveVectorSourceValue(int32 InVectorStackID, int32 InVectorLayerID, UMPAS_RigElement* InSourceElement);
 
-	// Returns the value of a position source in the given Stack and Layer
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|PositionStacks")
-	FVector GetPositionSourceValue(int32 InPositionStackID, int32 InPositionLayerID, UMPAS_RigElement* InSourceElement)
+	// Returns the value of a location source in the given Stack and Layer
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|VectorStacks")
+	FVector GetVectorSourceValue(int32 InVectorStackID, int32 InVectorLayerID, UMPAS_RigElement* InSourceElement)
 	{
-		return LocationStacks[InPositionStackID][InPositionLayerID].LayerElements[InSourceElement];
+		return VectorStacks[InVectorStackID][InVectorLayerID].LayerElements[InSourceElement];
 	}
 
 
@@ -245,7 +257,7 @@ public:
 // ROTATION LAYERS
 protected:
 
-	// Stacks by layers of which the position of the element is determined
+	// Stacks by layers of which the rotation of the element is determined
 	TArray<TArray<FMPAS_RotatorLayer>> RotationStacks;
 
 	// Name maps used to access Stacks and Layers by name (slower than ID)
@@ -345,12 +357,12 @@ public:
 	void OnPhysicsModelDisabled();
 	virtual void OnPhysicsModelDisabled_Implementation() {}
 
-	// Called when physics model is enabled, applies position and rotation of physics elements to the rig element
+	// Called when physics model is enabled, applies location and rotation of physics elements to the rig element
 	UFUNCTION(BlueprintNativeEvent, Category="MPAS|RigElement|PhysicsModel")
-	void ApplyPhysicsModelPositionAndRotation(float DeltaTime);
-	virtual void ApplyPhysicsModelPositionAndRotation_Implementation(float DeltaTime);
+	void ApplyPhysicsModelLocationAndRotation(float DeltaTime);
+	virtual void ApplyPhysicsModelLocationAndRotation_Implementation(float DeltaTime);
 
-	// Returns the position, where physics element needs to be once the physics model is enabled
+	// Returns the location, where physics element needs to be once the physics model is enabled
 	UFUNCTION(BlueprintNativeEvent, Category="MPAS|RigElement|PhysicsModel")
 	FTransform GetDesiredPhysicsElementTransform(int32 PhysicsElementID);
 	virtual FTransform GetDesiredPhysicsElementTransform_Implementation(int32 PhysicsElementID) { return GetComponentTransform(); }
@@ -472,14 +484,14 @@ public:
 // DEBUGGING
 public:
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|PositionStacks")
-	const TMap<FString, int32>& GetPositionStackNames() { return LocationStackNames; }
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|VectorStacks")
+	const TMap<FString, int32>& GetVectorStackNames() { return VectorStackNames; }
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|PositionStacks")
-	const TMap<FString, int32>& GetPositionLayerNames(int32 InPositionStackID) { return LocationLayerNames[InPositionStackID]; }
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|VectorStacks")
+	const TMap<FString, int32>& GetVectorLayerNames(int32 InVectorStackID) { return VectorLayerNames[InVectorStackID]; }
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|PositionStacks")
-	const FMPAS_VectorLayer& GetPositionLayer(int32 InPositionStackID, int32 InPositionLayerID) { return LocationStacks[InPositionStackID][InPositionLayerID]; }
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|VectorStacks")
+	const FMPAS_VectorLayer& GetVectorLayer(int32 InVectorStackID, int32 InVectorLayerID) { return VectorStacks[InVectorStackID][InVectorLayerID]; }
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|RotationStacks")
 	const TMap<FString, int32>& GetRotationStackNames() { return RotationStackNames; }
