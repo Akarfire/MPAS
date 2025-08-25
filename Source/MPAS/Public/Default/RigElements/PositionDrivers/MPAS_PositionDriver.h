@@ -19,7 +19,7 @@ struct FMPAS_PositionDrivenElementData
 	int32 RotationStackID;
 	int32 RotationLayerID;
 
-	FMPAS_PositionDrivenElementData(UMPAS_RigElement* InRigElement, int32 InLocationStackID, int32 InLocationLayerID, int32 InRotationStackID, int32 InRotationLayerID):
+	FMPAS_PositionDrivenElementData(UMPAS_RigElement* InRigElement = nullptr, int32 InLocationStackID = 0, int32 InLocationLayerID = 0, int32 InRotationStackID = 0, int32 InRotationLayerID = 0):
 		RigElement(InRigElement), LocationStackID(InLocationStackID), LocationLayerID(InLocationLayerID), RotationStackID(InRotationStackID), RotationLayerID(InRotationLayerID)
 	{}
 };
