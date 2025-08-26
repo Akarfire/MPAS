@@ -8,6 +8,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "PhysicsEngine/PhysicsConstraintComponent.h"
 #include "PhysicsEngine/ConstraintInstanceBlueprintLibrary.h"
+#include "Default/RigElements/PositionDrivers/MPAS_PositionDriver.h"
 
 
 // Sets default values for this component's properties
@@ -101,8 +102,22 @@ void UMPAS_Handler::ScanElement(UMPAS_RigElement* RigElement, const FName& Paren
 	if (ParentElementName == "Core")
 		CoreElements.Add(Name);
 
-	// Whether the element is visual
+	// Whether the element is void
 	bool IsVoid = Cast<UMPAS_VoidRigElement>(RigElement) != nullptr;
+
+	// Registering position drivers
+	UMPAS_PositionDriver* PositionDriver = Cast<UMPAS_PositionDriver>(RigElement);
+	if (PositionDriver)
+	{
+		// Generating unique name for the driver (if the specified name is already occupied)
+		FName UniqueName = PositionDriver->DriverName;
+		int32 Index = 0;
+
+		while (PositionDrivers.Contains(UniqueName))
+			UniqueName = FName(PositionDriver->DriverName.ToString() + "_" + FString::FromInt(Index++));
+
+		PositionDrivers.Add(UniqueName, PositionDriver);
+	}
 	
 	// Getting all children of this element
 	TArray<USceneComponent*> CoreChildComponents;

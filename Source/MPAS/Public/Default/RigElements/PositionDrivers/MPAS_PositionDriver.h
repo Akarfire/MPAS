@@ -28,7 +28,7 @@ struct FMPAS_PositionDrivenElementData
 /**
  * 
  */
-UCLASS()
+UCLASS(Blueprintable, ClassGroup = (Custom))
 class MPAS_API UMPAS_PositionDriver : public UMPAS_VoidRigElement
 {
 	GENERATED_BODY()
@@ -37,10 +37,18 @@ class MPAS_API UMPAS_PositionDriver : public UMPAS_VoidRigElement
 protected:
 
 	// A map of all elements affected by this position driver
-	TMap<UMPAS_RigElement*, FMPAS_PositionDrivenElementData> DrivenElements; 
+	TMap<UMPAS_RigElement*, FMPAS_PositionDrivenElementData> DrivenElements;
+
+	// An array of pointers to all of the driven elements in the same order as they are added into the map
+	// Cached once
+	TArray<UMPAS_RigElement*> DrivenElementsList;
 	
 public:
 
+	// Name of the position driver, that is going to be used to address it through the handler
+	// Cached on rig initialization, further changes will not have results
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Default|PositionDriver")
+	FName DriverName = "PositionDriver";
 
 // Methods
 protected:
@@ -72,7 +80,7 @@ public:
 
 	// Returns an array, containing pointers to all of the rig elements that are affected by this position driver
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|Elements|PositionDriver")
-	TArray<UMPAS_RigElement*> GetDrivenElementsList();
+	TArray<UMPAS_RigElement*> GetDrivenElementsList() { return DrivenElementsList; }
 
 	// CALLED BY THE HANDLER
 	// 

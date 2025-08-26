@@ -14,6 +14,19 @@ class MPAS_API UMPAS_BodySegment : public UMPAS_RigElement
 {
 	GENERATED_BODY()
 
+protected:
+
+	// Desired transform stack IDs
+
+	int32 DesiredLocationStackID = -1;
+	int32 DesiredRotationStackID = -1;
+
+
+	// Cached desired transform values
+
+	FVector CachedDesiredLocation;
+	FRotator CachedDesiredRotation;
+
 public:
 	UMPAS_BodySegment();
 
@@ -38,10 +51,10 @@ public:
 
 	// Returns the location, where the body needs to be placed
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|BodySegment")
-	FVector GetDesiredLocation();
+	FVector GetDesiredLocation() { return CachedDesiredLocation; }
 
 	// Returns the rotation, by which the body needs to be rotated
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|BodySegment")
-	FRotator GetDesiredRotation();
+	FRotator GetDesiredRotation() { return CachedDesiredRotation; }
 
 };

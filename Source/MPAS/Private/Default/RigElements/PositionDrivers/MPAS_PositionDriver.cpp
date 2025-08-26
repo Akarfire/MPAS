@@ -5,18 +5,6 @@
 #include "MPAS_Handler.h"
 
 
-// DATA GETTERS
-
-// Returns an array, containing pointers to all of the rig elements that are affected by this position driver
-TArray<UMPAS_RigElement*> UMPAS_PositionDriver::GetDrivenElementsList()
-{
-	TArray<UMPAS_RigElement*> OutElements;
-	DrivenElements.GetKeys(OutElements);
-
-	return OutElements;
-}
-
-
 // CALLED BY THE HANDLER
 
 // CALLED BY THE HANDLER :  Called when the rig is initialized by the handler - to be overriden in Blueprints
@@ -66,6 +54,9 @@ void UMPAS_PositionDriver::LinkRigElement(UMPAS_Handler* InHandler)
 
 		// Writing Driven Element Data
 		DrivenElements.Add(Child, FMPAS_PositionDrivenElementData(Child, LocationStackID, LocationLayerID, RotationStackID, RotationLayerID));
+	
+		// Caching element into the list
+		DrivenElementsList.Add(Child);
 	}
 
 	OnPositionDriverInitialized();

@@ -247,6 +247,22 @@ public:
 
 
 
+// POSITION DRIVERS
+
+protected:
+
+	// Map of all position drivers, located in the rig, <Driver Name, Pointer>
+	TMap<FName, class UMPAS_PositionDriver*> PositionDrivers;
+
+
+public:
+
+	// Returns a map of all position drivers, located in the rig, <Driver Name, Pointer>
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category= "MPAS|Handler|PositionDriver")
+	const TMap<FName, class UMPAS_PositionDriver*>& GetPositionDrivers() { return PositionDrivers; }
+
+
+
 // INPUT
 
 protected:

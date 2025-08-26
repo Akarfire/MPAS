@@ -9,6 +9,11 @@
 // Constructor
 UMPAS_BodySegment::UMPAS_BodySegment()
 {
+    // Position Driver settings
+    PositionDriverIntegration_LocationStackName = "DesiredLocation";
+    PositionDriverIntegration_RotationStackName = "DesiredRotation";
+
+    // Depricated
     PhysicsElementsConfiguration.Add(FMPAS_PhysicsElementConfiguration());
 }
 
@@ -16,6 +21,22 @@ UMPAS_BodySegment::UMPAS_BodySegment()
 void UMPAS_BodySegment::InitRigElement(class UMPAS_Handler* InHandler)
 {
     Super::InitRigElement(InHandler);
+
+    // Registering desired transform stacks and layers + setiing core offset values
+
+    DesiredLocationStackID = RegisterVectorStack("DesiredLocation");
+    RegisterVectorLayer(DesiredLocationStackID, "Core", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add);
+    RegisterVectorLayer(DesiredLocationStackID, "OffsetFromCore", EMPAS_LayerBlendingMode::Add, EMPAS_LayerCombinationMode::Add);
+    
+    SetVectorSourceValue(DesiredLocationStackID, 1, this, InHandler->GetCore()->GetComponentLocation() - GetComponentLocation());
+
+
+    DesiredRotationStackID = RegisterRotationStack("DesiredRotation");
+    RegisterRotationLayer(DesiredRotationStackID, "Core", EMPAS_LayerBlendingMode::Normal);
+    RegisterRotationLayer(DesiredRotationStackID, "OffsetFromCore", EMPAS_LayerBlendingMode::Add);
+
+    SetRotationSourceValue(DesiredRotationStackID, 1, this, InHandler->GetCore()->GetComponentRotation() - GetComponentRotation());
+
 }
 
 // CALLED BY THE HANDLER :  Updating Rig Element every tick
@@ -33,17 +54,14 @@ void UMPAS_BodySegment::UpdateRigElement(float DeltaTime)
 
         SetRotationSourceValue(0, 1, this, NewRotation);
     }
-}
 
+    // Updating desired transform stacks
 
-// Returns the location, where the body needs to be placed
-FVector UMPAS_BodySegment::GetDesiredLocation()
-{
-    return GetHandler()->GetCore()->GetComponentLocation();
-}
+    // Core transform update
+    SetVectorSourceValue(DesiredLocationStackID, 0, this, GetHandler()->GetCore()->GetComponentLocation());
+    SetRotationSourceValue(DesiredRotationStackID, 0, this, GetHandler()->GetCore()->GetComponentRotation());
 
-// Returns the rotation, by which the body needs to be rotated
-FRotator UMPAS_BodySegment::GetDesiredRotation()
-{
-    return GetHandler()->GetCore()->GetComponentRotation();
+    // Caching desired transform
+    CachedDesiredLocation = CalculateVectorStackValue(DesiredLocationStackID);
+    CachedDesiredRotation = CalculateRotationStackValue(DesiredRotationStackID);
 }
