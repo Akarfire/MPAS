@@ -325,7 +325,7 @@ public:
 
 	// Returns the value of a location source in the given Stack and Layer
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|VectorStacks")
-	FVector GetVectorSourceValue(int32 InVectorStackID, int32 InVectorLayerID, UMPAS_RigElement* InSourceElement)
+	const FVector& GetVectorSourceValue(int32 InVectorStackID, int32 InVectorLayerID, UMPAS_RigElement* InSourceElement)
 	{
 		return VectorStacks[InVectorStackID][InVectorLayerID].LayerElements[InSourceElement];
 	}

@@ -65,7 +65,9 @@ struct FMPAS_ControlPointData
 
 	// Desired offset from the previous control point
 	//UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FVector IntendedRelativeOffset; 
+	FVector IntendedRelativeOffset;
+
+	int32 LocationVectorStackID;
 
 	/*UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FVector ArrivingTangent;*/
@@ -153,6 +155,22 @@ public:
 	void SetControlPointTangentWorld(int32 InControlPoint, const FVector& InArrivingTangentWorldLocation, const FVector& InLeavingTangentWorldLocation);
 
 
+	// Control point effects
+
+	// Adds a new effect layer to the specified control point
+	// Effect layers can modify control point's location in runtime
+	// Returns -1 if layer registration failed
+	UFUNCTION(BlueprintCallable, Category = Category = "MPAS|Elements|PositionDriver|Spline")
+	int32 AddControlPointProceduralEffectLayer(int32 InControlPoint, const FString& InLayerName, EMPAS_LayerBlendingMode InBlendingMode, EMPAS_LayerCombinationMode InCombinationMode, float InBlendingFactor = 1.f, int32 InPriority = 1, bool InForceAllElementActive = false);
+
+	// Adds (or modifies) the value on the specified effect layer of the specific control point
+	UFUNCTION(BlueprintCallable, Category = Category = "MPAS|Elements|PositionDriver|Spline")
+	void SetControlPointProceduralEffectSourceValue(int32 InControlPoint, int32 InLayerID, UMPAS_RigElement* InSource, const FVector& Value);
+
+	// Retunrs the value on the specified effect layer of the specific control point
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = Category = "MPAS|Elements|PositionDriver|Spline")
+	const FVector& GetControlPointProceduralEffectSourceValue(int32 InControlPoint, int32 InLayerID, UMPAS_RigElement* InSource);
+
 
 	// VIRTUAL, Called right after the position driver has gathered data about it's driven elements
 	virtual void OnPositionDriverInitialized_Implementation() override;
@@ -164,4 +182,13 @@ public:
 
 	// CALLED BY THE HANDLER : Updating Rig Element every tick
 	virtual void UpdateRigElement(float DeltaTime) override;
+
+	
+	// DEBUG
+
+public:
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Elements|PositionDriver|Spline")
+	int32 DEBUG_GetControlPointLocationStackID(int32 InControlPoint) { return ControlPoints[InControlPoint].LocationVectorStackID; }
 };
+
