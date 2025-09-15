@@ -141,6 +141,9 @@ protected:
 	// Links all elements in RigData
 	void LinkRig();
 
+	// Finalizes rig elements' setup
+	void PostLinkSetupRig();
+
 	// Calls OnRigSetupFinished on all Intention Drivers
 	void OnRigSetupComplete();
 

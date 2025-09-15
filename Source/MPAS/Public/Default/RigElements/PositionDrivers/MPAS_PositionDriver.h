@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Default/RigElements/MPAS_VoidRigElement.h"
+#include "MPAS_RigElement.h"
 #include "MPAS_PositionDriver.generated.h"
 
 USTRUCT()
@@ -29,7 +29,7 @@ struct FMPAS_PositionDrivenElementData
  * 
  */
 UCLASS(Blueprintable, ClassGroup = (Custom))
-class MPAS_API UMPAS_PositionDriver : public UMPAS_VoidRigElement
+class MPAS_API UMPAS_PositionDriver : public UMPAS_RigElement
 {
 	GENERATED_BODY()
 

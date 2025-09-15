@@ -9,6 +9,8 @@
 USTRUCT()
 struct FMPAS_JointPositionDriverElementData
 {
+	GENERATED_USTRUCT_BODY()
+
 	// Distance between the joint origin and the attached element (it`s center)
 	float Distance;
 
@@ -17,6 +19,8 @@ struct FMPAS_JointPositionDriverElementData
 
 	// Rotation of the element
 	FRotator DefaultElementRotation;
+
+	FMPAS_JointPositionDriverElementData() {}
 };
 
 /**
@@ -26,7 +30,7 @@ UCLASS(Blueprintable, ClassGroup = (Custom), meta = (BlueprintSpawnableComponent
 class MPAS_API UMPAS_JointPositionDriver : public UMPAS_PositionDriver
 {
 	GENERATED_BODY()
-	
+
 protected:
 
 	// Joint data for each attached element
@@ -50,9 +54,10 @@ public:
 	// INTENTION DRIVING INTEGRATION
 
 	// Outputs Distance and Rotation of the joint for the specified attached element
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|Elements|PositionDriver|Joint")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Elements|PositionDriver|Joint")
 	void GetJointState(float& OutDistance, FRotator& OutRotation, int32 InElementIndex);
 
 	// Updates Distance and Rotation of the joint for the specified attached element
 	UFUNCTION(BlueprintCallable, Category = "MPAS|Elements|PositionDriver|Joint")
 	void SetJointState(int32 InElementIndex, float InDistance, const FRotator& InRotation);
+};

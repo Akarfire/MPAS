@@ -28,14 +28,14 @@ void UMPAS_BodySegment::InitRigElement(class UMPAS_Handler* InHandler)
     RegisterVectorLayer(DesiredLocationStackID, "Core", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add);
     RegisterVectorLayer(DesiredLocationStackID, "OffsetFromCore", EMPAS_LayerBlendingMode::Add, EMPAS_LayerCombinationMode::Add);
     
-    SetVectorSourceValue(DesiredLocationStackID, 1, this, InHandler->GetCore()->GetComponentLocation() - GetComponentLocation());
+    SetVectorSourceValue(DesiredLocationStackID, 1, this, GetComponentLocation() - InHandler->GetCore()->GetComponentLocation());
 
 
     DesiredRotationStackID = RegisterRotationStack("DesiredRotation");
     RegisterRotationLayer(DesiredRotationStackID, "Core", EMPAS_LayerBlendingMode::Normal);
     RegisterRotationLayer(DesiredRotationStackID, "OffsetFromCore", EMPAS_LayerBlendingMode::Add);
 
-    SetRotationSourceValue(DesiredRotationStackID, 1, this, InHandler->GetCore()->GetComponentRotation() - GetComponentRotation());
+    SetRotationSourceValue(DesiredRotationStackID, 1, this, GetComponentRotation() - InHandler->GetCore()->GetComponentRotation());
 
 }
 
@@ -64,4 +64,25 @@ void UMPAS_BodySegment::UpdateRigElement(float DeltaTime)
     // Caching desired transform
     CachedDesiredLocation = CalculateVectorStackValue(DesiredLocationStackID);
     CachedDesiredRotation = CalculateRotationStackValue(DesiredRotationStackID);
+
+    // Updating enforcement
+    //FVector EnforcementVector = UKismetMathLibrary::VInterpTo(GetComponentLocation(), CachedDesiredLocation, DeltaTime, DesiredPositionEnforcement) - GetComponentLocation();
+    
+    if (!IsCoreElement) // Core element's desired location is not enforced (maybe I will make it optional in the future)
+    {
+        // Location enforcement
+        //SetWorldLocation(UKismetMathLibrary::VLerp(GetComponentLocation(), CachedDesiredLocation, DesiredLocationEnforcement));
+
+        FVector DesiredDelta = CachedDesiredLocation - GetComponentLocation();
+        FVector LocalizedDelta = UKismetMathLibrary::Quat_UnrotateVector(GetComponentQuat(), DesiredDelta);
+
+        FVector EnforcementLocalDelta = LocalizedDelta * DesiredLocationEnforcement * LocationEnforcementDirectionalScaling;
+
+        FVector EnforcementDelta = GetComponentQuat().RotateVector(EnforcementLocalDelta);
+        
+        SetWorldLocation(GetComponentLocation() + EnforcementDelta);
+
+        // Rotation enforcement
+        SetWorldRotation(UKismetMathLibrary::RLerp(GetComponentRotation(), CachedDesiredRotation, DesiredRotationEnforcement, true));
+    }
 }

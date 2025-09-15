@@ -111,7 +111,8 @@ void UMPAS_Limb::InitLimb()
             // Fetching origin position if needed
             if (Fetch_OriginPosition)
             {
-                FVector ParentLocation = CalculateVectorLayerValue(GetVectorLayer(0, 0));
+                bool HasActiveElements = false;
+                FVector ParentLocation = CalculateVectorLayerValue(VectorStacks[0][0], HasActiveElements);
                 FVector NewSelfLocation = CurrentState[0].Location - ParentLocation;
 
                 SetVectorSourceValue(0, 1, this, NewSelfLocation);
@@ -186,8 +187,8 @@ void UMPAS_Limb::GeneratePhysicsModelConfiguration()
             NewConfig.PositionStackID = RegisterVectorStack("PhysicsElementPosition_" + UKismetStringLibrary::Conv_IntToString(i));
             NewConfig.RotationStackID = RegisterRotationStack("PhysicsElementRotation_" + UKismetStringLibrary::Conv_IntToString(i));
 
-            RegisterVectorLayer(NewConfig.PositionStackID, "PhysicsElementPosition", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, true);
-            RegisterRotationLayer(NewConfig.RotationStackID, "PhysicsElementRotation", EMPAS_LayerBlendingMode::Normal, true);
+            RegisterVectorLayer(NewConfig.PositionStackID, "PhysicsElementPosition", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 0, true);
+            RegisterRotationLayer(NewConfig.RotationStackID, "PhysicsElementRotation", EMPAS_LayerBlendingMode::Normal, 1.f, 0, true);
 
 
             PhysicsElementsConfiguration.Add(NewConfig);
@@ -249,6 +250,7 @@ void UMPAS_Limb::SolveLimb()
             }
             
             L_PoleTargets.Add(LastCalculatedPoleTarget);
+            //L_PoleTargets.Add(FVector(0, 0, 0));
         }
         
 
@@ -491,11 +493,11 @@ void UMPAS_Limb::RecalculateRoll(TArray<FMPAS_LimbSegmentState>& InOutState, flo
         if (i > 0)
         {
             FVector OriginToStart = InOutState[i].Location - InOriginLocation;
-            FVector OriginToEnd = InOutState[i].Location + InOutState[i].Rotation.Vector() * InSegments[i].Length - InOriginLocation;
+            FVector OriginToEnd = InOutState[i].Location + UKismetMathLibrary::GetForwardVector(InOutState[i].Rotation) * InSegments[i].Length - InOriginLocation;
 
             SolutionPlaneNormal = UKismetMathLibrary::Cross_VectorVector(OriginToStart, OriginToEnd).GetSafeNormal();
 
-            TargetDirection = (InOutState[i].Location + InOutState[i].Location + InOutState[i].Rotation.Vector() * InSegments[i].Length) / 2.f - InOriginLocation;
+            TargetDirection = (InOutState[i].Location + InOutState[i].Location + UKismetMathLibrary::GetForwardVector(InOutState[i].Rotation) * InSegments[i].Length) / 2.f - InOriginLocation;
         }
 
         // First segment case
@@ -503,12 +505,11 @@ void UMPAS_Limb::RecalculateRoll(TArray<FMPAS_LimbSegmentState>& InOutState, flo
         {
             TargetDirection = InUpVector;
 
-            SolutionPlaneNormal = UKismetMathLibrary::Cross_VectorVector(InUpVector, InOutState[i].Rotation.Vector()).GetSafeNormal();
+            SolutionPlaneNormal = UKismetMathLibrary::Cross_VectorVector(InUpVector, UKismetMathLibrary::GetForwardVector(InOutState[i].Rotation)).GetSafeNormal();
         }
 
-
-        // Sollution
-        FVector TargetNormal = UKismetMathLibrary::Cross_VectorVector(SolutionPlaneNormal, InOutState[i].Rotation.Vector()).GetSafeNormal();
+        // Solution
+        FVector TargetNormal = UKismetMathLibrary::Cross_VectorVector(SolutionPlaneNormal, UKismetMathLibrary::GetForwardVector(InOutState[i].Rotation)).GetSafeNormal();
 
         if (UKismetMathLibrary::Dot_VectorVector(TargetNormal, TargetDirection) < UKismetMathLibrary::Dot_VectorVector(TargetNormal * -1.f, TargetDirection))
             TargetNormal *= -1.f;
@@ -612,6 +613,8 @@ void UMPAS_Limb::UpdateRigElement(float DeltaTime)
 {
     Super::UpdateRigElement(DeltaTime);
 
+    SetWorldRotation(FRotator::ZeroRotator);
+
     if (Initialized && GetRigElementActive() && !GetPhysicsModelEnabled())
     {
         InterpolateLimb(DeltaTime);
@@ -685,6 +688,6 @@ FVector UMPAS_Limb::ProjectLocationOnToSolutionPlane(const FVector& InLocation, 
 {
     FVector PlaneNormal = UKismetMathLibrary::Cross_VectorVector(InLimbTarget - InLimbOrigin, InPoleTarget - InLimbOrigin).GetSafeNormal();
     FVector Projection = UKismetMathLibrary::ProjectVectorOnToPlane(InLocation - InLimbOrigin, PlaneNormal);
-
+    
     return Projection + InLimbOrigin;
 }

@@ -41,6 +41,9 @@ void UMPAS_Handler::BeginPlay()
 
 	// Lings rig after initializing
 	LinkRig();
+
+	// Finalizes rig elements' setup
+	PostLinkSetupRig();
 	
 	SetupComplete = true;
 
@@ -163,6 +166,13 @@ void UMPAS_Handler::LinkRig()
 {
 	for (auto& RigElement: RigData)
 		RigElement.Value.RigElement->LinkRigElement(this);
+}
+
+// Finalizes rig elements' setup
+void UMPAS_Handler::PostLinkSetupRig()
+{
+	for (auto& RigElement : RigData)
+		RigElement.Value.RigElement->PostLinkSetupRigElement(this);
 }
 
 // Calls OnRigSetupFinished on all Intention Drivers

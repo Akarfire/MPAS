@@ -27,6 +27,7 @@ protected:
 	FVector CachedDesiredLocation;
 	FRotator CachedDesiredRotation;
 
+
 public:
 	UMPAS_BodySegment();
 
@@ -40,6 +41,14 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Orientation")
 	float LiniarRotationInterpolationSpeed = 3.f;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|PositionDriving")
+	float DesiredLocationEnforcement = 1.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|PositionDriving")
+	FVector LocationEnforcementDirectionalScaling = FVector(1, 1, 1);
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|PositionDriving")
+	float DesiredRotationEnforcement = 1.f;
 
 public:
 	// CALLED BY THE HANDLER : Initializing Rig Element

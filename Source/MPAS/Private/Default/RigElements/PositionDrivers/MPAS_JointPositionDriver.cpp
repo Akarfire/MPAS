@@ -2,6 +2,7 @@
 
 
 #include "Default/RigElements/PositionDrivers/MPAS_JointPositionDriver.h"
+#include "Kismet/KismetMathLibrary.h"
 
 
 // VIRTUAL, Called right after the position driver has gathered data about it's driven elements
@@ -24,8 +25,9 @@ void UMPAS_JointPositionDriver::OnPositionDriverInitialized_Implementation()
 // If the specified element is not one of the affected by this Position Driver, (0, 0, 0)-s are returned
 void UMPAS_JointPositionDriver::CalculateElementTransform_Implementation(FVector& OutLocation, FRotator& OutRotation, UMPAS_RigElement* InRigElement)
 {
-	OutLocation = JointsData[InRigElement].Rotation.RotateVector(GetForwardVector())* JointsData[InRigElement].Distance;
-	OutRotation = JointsData[InRigElement].DefaultElementRotation + JointsData[InRigElement].Rotation;
+	OutLocation = JointsData[InRigElement].Rotation.RotateVector(GetForwardVector()) * JointsData[InRigElement].Distance + GetComponentLocation();
+	OutRotation = UKismetMathLibrary::FindLookAtRotation(InRigElement->GetComponentLocation(), GetComponentLocation()) + JointsData[InRigElement].DefaultElementRotation;
+	//(GetComponentLocation() - OutLocation).Rotation()
 }
 
 

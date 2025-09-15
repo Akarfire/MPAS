@@ -41,13 +41,13 @@ void UMPAS_RigElement::InitRigElement(class UMPAS_Handler* InHandler)
 
 	// Registering default location stack and default layers
 	RegisterVectorStack("DefaultLocation");
-	RegisterVectorLayer(0, "ParentLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Average, true); // This layer contains world space location of the parent element
-	RegisterVectorLayer(0, "SelfLocation", EMPAS_LayerBlendingMode::Add, EMPAS_LayerCombinationMode::Average, true); // This layer contains locaiton of the element relative to it's parent
+	RegisterVectorLayer(0, "ParentLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Average, 1.f, 0, true); // This layer contains world space location of the parent element
+	RegisterVectorLayer(0, "SelfLocation", EMPAS_LayerBlendingMode::Add, EMPAS_LayerCombinationMode::Average, 1.f, 0, true); // This layer contains locaiton of the element relative to it's parent
 
 	// Registering default rotation stack and default layers 
 	RegisterRotationStack("DefaultRotation");
-	RegisterRotationLayer(0, "ParentRotation", EMPAS_LayerBlendingMode::Normal, true); // This layer contains world space rotation of the parent element
-	RegisterRotationLayer(0, "SelfRotation", EMPAS_LayerBlendingMode::Add, true); // This layer contains rotation of the element relative to it's parent
+	RegisterRotationLayer(0, "ParentRotation", EMPAS_LayerBlendingMode::Normal, 1.f, 0, true); // This layer contains world space rotation of the parent element
+	RegisterRotationLayer(0, "SelfRotation", EMPAS_LayerBlendingMode::Add, 1.f, 0, true); // This layer contains rotation of the element relative to it's parent
 
 	// Registering parameters
 
@@ -112,6 +112,11 @@ void UMPAS_RigElement::LinkRigElement(class UMPAS_Handler* InHandler)
 	OnLinkRigElement(InHandler);
 }
 
+// CALLED BY THE HANDLER : Called after the linking phase has completed (no more side changes will be applied to the element)
+void UMPAS_RigElement::PostLinkSetupRigElement(UMPAS_Handler* InHandler)
+{
+}
+
 
 // CALLED BY THE HANDLER : Links element to it's physics model equivalent
 void UMPAS_RigElement::InitPhysicsModel(const TArray<UMPAS_PhysicsModelElement*>& InPhysicsElements)
@@ -123,8 +128,8 @@ void UMPAS_RigElement::InitPhysicsModel(const TArray<UMPAS_PhysicsModelElement*>
 		PhysicsElementsConfiguration[i].PositionStackID = RegisterVectorStack("PhysicsModelStack_" + UKismetStringLibrary::Conv_IntToString(i));
 		PhysicsElementsConfiguration[i].RotationStackID = RegisterRotationStack("PhysicsModelStack_" + UKismetStringLibrary::Conv_IntToString(i));
 
-		RegisterVectorLayer(PhysicsElementsConfiguration[i].PositionStackID, "PhysicsElementLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, true);
-		RegisterRotationLayer(PhysicsElementsConfiguration[i].RotationStackID, "PhysicsElementRotation", EMPAS_LayerBlendingMode::Normal, true);
+		RegisterVectorLayer(PhysicsElementsConfiguration[i].PositionStackID, "PhysicsElementLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 0, true);
+		RegisterRotationLayer(PhysicsElementsConfiguration[i].RotationStackID, "PhysicsElementRotation", EMPAS_LayerBlendingMode::Normal, 1.f, 0, true);
 	}
 
 	OnInitPhysicsModel();
@@ -186,11 +191,11 @@ void UMPAS_RigElement::UpdateRigElement(float DeltaTime)
 // Applies the default vector stack to the element's world location
 void UMPAS_RigElement::ApplyDefaultLocationStack(float DeltaTime)
 {
-	FVector StackValue = CalculateVectorStackValue(0);
+	CachedDefaultLocationStackValue = CalculateVectorStackValue(0);
 
-	FVector NewLocation = StackValue;
+	FVector NewLocation = CachedDefaultLocationStackValue;
 	if (LocationInterpolationSpeed != 0)
-		NewLocation = UKismetMathLibrary::VInterpTo(GetComponentLocation(), StackValue, DeltaTime, LocationInterpolationSpeed * LocationInterpolationMultiplier);
+		NewLocation = UKismetMathLibrary::VInterpTo(GetComponentLocation(), CachedDefaultLocationStackValue, DeltaTime, LocationInterpolationSpeed * LocationInterpolationMultiplier);
 
 	SetWorldLocation(NewLocation);
 }
@@ -200,24 +205,29 @@ FVector UMPAS_RigElement::CalculateVectorStackValue(int32 InVectorStackID)
 {
 	FVector FinalVector;
 
-	for (auto& Layer : VectorStacks[InVectorStackID])
+	for (int32 LayerID : VectorStacks[InVectorStackID].StackOrder)
 	{
-		FVector LayerValue = CalculateVectorLayerValue(Layer);
+		FMPAS_VectorLayer& Layer = VectorStacks[InVectorStackID].Layers[LayerID];
 
-		if (LayerValue != FVector(0, 0, 0))
+		if (!Layer.Enabled) continue;
+
+		bool HasActiveElements = false;
+		FVector LayerValue = CalculateVectorLayerValue(Layer, HasActiveElements);
+
+		if (HasActiveElements)
 		{
 			switch (Layer.BlendingMode)
 			{
 			case EMPAS_LayerBlendingMode::Normal:
-				FinalVector = LayerValue;
+				FinalVector = UKismetMathLibrary::VLerp(FinalVector, LayerValue, Layer.BlendingFactor);
 				break;
 			
 			case EMPAS_LayerBlendingMode::Add:
-				FinalVector += LayerValue;
+				FinalVector += LayerValue * Layer.BlendingFactor;
 				break;
 
 			case EMPAS_LayerBlendingMode::Multiply:
-				FinalVector *= LayerValue;
+				FinalVector = UKismetMathLibrary::VLerp(FinalVector, FinalVector * LayerValue, Layer.BlendingFactor);
 				break;
 
 			default: break;
@@ -229,7 +239,7 @@ FVector UMPAS_RigElement::CalculateVectorStackValue(int32 InVectorStackID)
 }
 
 // Calculates the final vector of the given vector layer
-FVector UMPAS_RigElement::CalculateVectorLayerValue(const FMPAS_VectorLayer InLayer)
+FVector UMPAS_RigElement::CalculateVectorLayerValue(const FMPAS_VectorLayer InLayer, bool& OutHasActiveElements)
 {
 	FVector OutVector = FVector(0, 0, 0);
 	int32 ActiveElementCount = 0;
@@ -288,6 +298,7 @@ FVector UMPAS_RigElement::CalculateVectorLayerValue(const FMPAS_VectorLayer InLa
 		break;
 	}
 
+	OutHasActiveElements = ActiveElementCount > 0;
 	return OutVector;
 }
 
@@ -298,7 +309,7 @@ int32 UMPAS_RigElement::RegisterVectorStack(const FString& InStackName)
 	if (VectorStackNames.Contains(InStackName))
 		return VectorStackNames[InStackName];
 
-	TArray<FMPAS_VectorLayer> NewStack;
+	FMPAS_VectorStack NewStack;
 
 	int32 StackID = VectorStacks.Add(NewStack);
 	VectorStackNames.Add(InStackName, StackID);
@@ -310,7 +321,7 @@ int32 UMPAS_RigElement::RegisterVectorStack(const FString& InStackName)
 }
 
 // Registers a new vector layer in the given stack and returns it's ID, returns an existing ID if the layer is already registered, returns -1 if Stack does not exist
-int32 UMPAS_RigElement::RegisterVectorLayer(int32 InVectorStackID, const FString& InLayerName, EMPAS_LayerBlendingMode InBlendingMode, EMPAS_LayerCombinationMode InCombinationMode, bool InForceAllElementsActive)
+int32 UMPAS_RigElement::RegisterVectorLayer(int32 InVectorStackID, const FString& InLayerName, EMPAS_LayerBlendingMode InBlendingMode, EMPAS_LayerCombinationMode InCombinationMode, float InBlendingFactor, int32 InPriority, bool InForceAllElementsActive)
 {
 	if (InVectorStackID < 0 || InVectorStackID >= VectorStacks.Num())
 		return -1;
@@ -318,9 +329,10 @@ int32 UMPAS_RigElement::RegisterVectorLayer(int32 InVectorStackID, const FString
 	if (VectorLayerNames[InVectorStackID].Contains(InLayerName))
 		return VectorLayerNames[InVectorStackID][InLayerName];
 
-	FMPAS_VectorLayer NewLayer(InBlendingMode, InCombinationMode, InForceAllElementsActive);
+	FMPAS_VectorLayer NewLayer(InBlendingMode, InBlendingFactor, InCombinationMode, InPriority, InForceAllElementsActive);
 
-	int32 LayerID = VectorStacks[InVectorStackID].Add(NewLayer);
+	int32 LayerID = VectorStacks[InVectorStackID].AddVectorLayer(NewLayer);
+
 	VectorLayerNames[InVectorStackID].Add(InLayerName, LayerID);
 
 	return LayerID;
@@ -377,6 +389,58 @@ bool UMPAS_RigElement::RemoveVectorSourceValue(int32 InVectorStackID, int32 InVe
 }
 
 
+// Enables/Disables the specified vector layer, if succeded: returns true, false - overwise
+bool UMPAS_RigElement::SetVectorLayerEnabled(int32 InVectorStackID, int32 InVectorLayerID, bool InNewEnabled)
+{
+	if (InVectorStackID < 0 || InVectorStackID >= VectorStacks.Num())
+		return false;
+
+	if (InVectorLayerID < 0 || InVectorLayerID >= VectorStacks[InVectorStackID].Num())
+		return false;
+
+	VectorStacks[InVectorStackID][InVectorLayerID].Enabled = InNewEnabled;
+	return true;
+}
+
+// Whenther the specified layer is enabled or not ("false" if the layer doesnt exist)
+bool UMPAS_RigElement::GetVectorLayerEnabled(int32 InVectorStackID, int32 InVectorLayerID)
+{
+	if (InVectorStackID < 0 || InVectorStackID >= VectorStacks.Num())
+		return false;
+
+	if (InVectorLayerID < 0 || InVectorLayerID >= VectorStacks[InVectorStackID].Num())
+		return false;
+
+	return VectorStacks[InVectorStackID][InVectorLayerID].Enabled;
+}
+
+
+// Modifies blending factor of the specified vector layer, if succeded: returns true, false - overwise
+bool UMPAS_RigElement::SetVectorLayerBlendingFactor(int32 InVectorStackID, int32 InVectorLayerID, float InNewBlendingFactor)
+{
+	if (InVectorStackID < 0 || InVectorStackID >= VectorStacks.Num())
+		return false;
+
+	if (InVectorLayerID < 0 || InVectorLayerID >= VectorStacks[InVectorStackID].Num())
+		return false;
+
+	VectorStacks[InVectorStackID][InVectorLayerID].BlendingFactor = InNewBlendingFactor;
+	return true;
+}
+
+// Returns the blending factor of the specified layer is enabled or not ("0" if the layer doesnt exist)
+float UMPAS_RigElement::GetVectorLayerBlendingFactor(int32 InVectorStackID, int32 InVectorLayerID)
+{
+	if (InVectorStackID < 0 || InVectorStackID >= VectorStacks.Num())
+		return 0.0;
+
+	if (InVectorLayerID < 0 || InVectorLayerID >= VectorStacks[InVectorStackID].Num())
+		return 0.0;
+
+	return VectorStacks[InVectorStackID][InVectorLayerID].BlendingFactor;
+}
+
+
 
 // ROTATION LAYERS
 
@@ -395,10 +459,14 @@ void UMPAS_RigElement::ApplyDefaultRotationStack(float DeltaTime)
 // Calculates the final rotation of the given rotation stack
 FRotator UMPAS_RigElement::CalculateRotationStackValue(int32 InRotationStackID)
 {
-	FRotator FinalRotation = FRotator(0, 0, 0);
+	FRotator FinalRotation = FRotator::ZeroRotator;
 
-	for (auto& Layer : RotationStacks[InRotationStackID])
+	for (int32 LayerID : RotationStacks[InRotationStackID].StackOrder)
 	{
+		FMPAS_RotatorLayer& Layer = RotationStacks[InRotationStackID].Layers[LayerID];
+
+		if (!Layer.Enabled) continue;
+
 		bool HasActiveElements;
 		FRotator LayerValue = CalculateRotationLayerValue(Layer, HasActiveElements);
 
@@ -408,18 +476,18 @@ FRotator UMPAS_RigElement::CalculateRotationStackValue(int32 InRotationStackID)
 			{
 
 			case EMPAS_LayerBlendingMode::Normal:
-				FinalRotation = LayerValue;
+				FinalRotation = UKismetMathLibrary::RLerp(FinalRotation, LayerValue, Layer.BlendingFactor, true);
 				break;
 			
 			case EMPAS_LayerBlendingMode::Add:
-				FinalRotation += LayerValue;
+				FinalRotation += UKismetMathLibrary::RLerp(FRotator::ZeroRotator, LayerValue, Layer.BlendingFactor, true);;
 				break;
 
 			case EMPAS_LayerBlendingMode::Multiply:
 
-				FinalRotation.Pitch *= LayerValue.Pitch;
-				FinalRotation.Yaw *= LayerValue.Yaw;
-				FinalRotation.Roll *= LayerValue.Roll;
+				FinalRotation.Pitch *= UKismetMathLibrary::Lerp(1.f, LayerValue.Pitch, Layer.BlendingFactor);
+				FinalRotation.Yaw *= UKismetMathLibrary::Lerp(1.f, LayerValue.Yaw, Layer.BlendingFactor);
+				FinalRotation.Roll *= UKismetMathLibrary::Lerp(1.f, LayerValue.Roll, Layer.BlendingFactor);
 				break;
 
 			default: break;
@@ -464,7 +532,7 @@ int32 UMPAS_RigElement::RegisterRotationStack(const FString& InStackName)
 	if (RotationStackNames.Contains(InStackName))
 		return RotationStackNames[InStackName];
 
-	TArray<FMPAS_RotatorLayer> NewStack;
+	FMPAS_RotatorStack NewStack;
 
 	int32 StackID = RotationStacks.Add(NewStack);
 	RotationStackNames.Add(InStackName, StackID);
@@ -476,7 +544,7 @@ int32 UMPAS_RigElement::RegisterRotationStack(const FString& InStackName)
 }
 
 // Registers a new rotation layer in the given stack and returns it's ID, returns an existing ID if the layer is already registered, returns -1 if Stack does not exist
-int32 UMPAS_RigElement::RegisterRotationLayer(int32 InRotationStackID, const FString& InLayerName, EMPAS_LayerBlendingMode InBlendingMode, bool InForceAllElementsActive)
+int32 UMPAS_RigElement::RegisterRotationLayer(int32 InRotationStackID, const FString& InLayerName, EMPAS_LayerBlendingMode InBlendingMode, float InBlendingFactor, int32 InPriority, bool InForceAllElementsActive)
 {
 	if (InRotationStackID < 0 || InRotationStackID >= RotationStacks.Num())
 		return -1;
@@ -484,11 +552,11 @@ int32 UMPAS_RigElement::RegisterRotationLayer(int32 InRotationStackID, const FSt
 	if (RotationLayerNames[InRotationStackID].Contains(InLayerName))
 		return RotationLayerNames[InRotationStackID][InLayerName];
 
-	FMPAS_RotatorLayer NewLayer(InBlendingMode, EMPAS_LayerCombinationMode::Add, InForceAllElementsActive);
+	FMPAS_RotatorLayer NewLayer(InBlendingMode, InBlendingFactor, EMPAS_LayerCombinationMode::Add, InPriority, InForceAllElementsActive);
 
-	int32 LayerID = RotationStacks[InRotationStackID].Add(NewLayer);
+	int32 LayerID = RotationStacks[InRotationStackID].AddRotatorLayer(NewLayer);
+
 	RotationLayerNames[InRotationStackID].Add(InLayerName, LayerID);
-
 	return LayerID;
 }
 
@@ -539,6 +607,60 @@ bool UMPAS_RigElement::RemoveRotationSourceValue(int32 InRotationStackID, int32 
 		return false;
 
 	return RotationStacks[InRotationStackID][InRotationLayerID].LayerElements.Remove(InSourceElement) > 0;
+}
+
+
+// Enables/Disables the specified rotation layer, if succeded: returns true, false - overwise
+bool UMPAS_RigElement::SetRotationLayerEnabled(int32 InRotationStackID, int32 InRotationLayerID, bool InNewEnabled)
+{
+	if (InRotationStackID < 0 || InRotationStackID >= RotationStacks.Num())
+		return false;
+
+	if (InRotationLayerID < 0 || InRotationLayerID >= RotationStacks[InRotationStackID].Num())
+		return false;
+
+	RotationStacks[InRotationStackID][InRotationLayerID].Enabled = InNewEnabled;
+
+	return true;
+}
+
+// Whenther the specified layer is enabled or not ("false" if the layer doesnt exist)
+bool UMPAS_RigElement::GetRotationLayerEnabled(int32 InRotationStackID, int32 InRotationLayerID)
+{
+	if (InRotationStackID < 0 || InRotationStackID >= RotationStacks.Num())
+		return false;
+
+	if (InRotationLayerID < 0 || InRotationLayerID >= RotationStacks[InRotationStackID].Num())
+		return false;
+
+	return RotationStacks[InRotationStackID][InRotationLayerID].Enabled;
+}
+
+
+// Modifies blending factor of the specified rotation layer, if succeded: returns true, false - overwise
+bool UMPAS_RigElement::SetRotationLayerBlendingFactor(int32 InRotationStackID, int32 InRotationLayerID, float InNewBlendingFactor)
+{
+	if (InRotationStackID < 0 || InRotationStackID >= RotationStacks.Num())
+		return false;
+
+	if (InRotationLayerID < 0 || InRotationLayerID >= RotationStacks[InRotationStackID].Num())
+		return false;
+
+	RotationStacks[InRotationStackID][InRotationLayerID].BlendingFactor = InNewBlendingFactor;
+
+	return true;
+}
+
+// Returns the blending factor of the specified layer is enabled or not ("0" if the layer doesnt exist)
+float UMPAS_RigElement::GetRotationLayerBlendingFactor(int32 InRotationStackID, int32 InRotationLayerID)
+{
+	if (InRotationStackID < 0 || InRotationStackID >= RotationStacks.Num())
+		return 0.0f;
+
+	if (InRotationLayerID < 0 || InRotationLayerID >= RotationStacks[InRotationStackID].Num())
+		return 0.0f;
+
+	return RotationStacks[InRotationStackID][InRotationLayerID].BlendingFactor;
 }
 
 
@@ -688,4 +810,51 @@ void UMPAS_RigElement::OnStabilityStatusChanged_Implementation(EMPAS_StabilitySt
 	for (auto& Element: ChildPropogation)
 		if (RigElementName != Element)
 			GetHandler()->GetRigData()[Element].RigElement->UpdateStability();	
+}
+
+
+// STACKS
+
+// Adds a new layer into the stack and updates the stack order
+int32 FMPAS_VectorStack::AddVectorLayer(FMPAS_VectorLayer InLayer)
+{
+	// Storing the layer
+	int32 ID = Layers.Add(InLayer);
+
+	// Updating stack order
+	int32 LastIndex = StackOrder.Add(ID);
+
+	// Insertion sort for just the last element (works in O(N), N - number of elements in the stack)
+	int32 i = LastIndex - 1;
+	while (i >= 0 && Layers[StackOrder[i]].Priority > InLayer.Priority)
+	{
+		StackOrder[i + 1] = StackOrder[i];
+		i--;
+	}
+
+	StackOrder[i + 1] = ID;
+
+	return ID;
+}
+
+// Adds a new layer into the stack and updates the stack order
+int32 FMPAS_RotatorStack::AddRotatorLayer(FMPAS_RotatorLayer InLayer)
+{
+	// Storing the layer
+	int32 ID = Layers.Add(InLayer);
+
+	// Updating stack order
+	int32 LastIndex = StackOrder.Add(ID);
+
+	// Insertion sort for just the last element (works in O(N), N - number of elements in the stack)
+	int32 i = LastIndex - 1;
+	while (i >= 0 && Layers[StackOrder[i]].Priority > InLayer.Priority)
+	{
+		StackOrder[i + 1] = StackOrder[i];
+		i--;
+	}
+
+	StackOrder[i + 1] = ID;
+
+	return ID;
 }
