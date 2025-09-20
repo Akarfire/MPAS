@@ -41,8 +41,8 @@ void UMPAS_RigElement::InitRigElement(class UMPAS_Handler* InHandler)
 
 	// Registering default location stack and default layers
 	RegisterVectorStack("DefaultLocation");
-	RegisterVectorLayer(0, "ParentLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Average, 1.f, 0, true); // This layer contains world space location of the parent element
-	RegisterVectorLayer(0, "SelfLocation", EMPAS_LayerBlendingMode::Add, EMPAS_LayerCombinationMode::Average, 1.f, 0, true); // This layer contains locaiton of the element relative to it's parent
+	RegisterVectorLayer(0, "ParentLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 0, true); // This layer contains world space location of the parent element
+	RegisterVectorLayer(0, "SelfLocation", EMPAS_LayerBlendingMode::Add, EMPAS_LayerCombinationMode::Add, 1.f, 0, true); // This layer contains locaiton of the element relative to it's parent
 
 	// Registering default rotation stack and default layers 
 	RegisterRotationStack("DefaultRotation");

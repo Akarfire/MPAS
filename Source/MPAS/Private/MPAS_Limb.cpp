@@ -209,6 +209,8 @@ void UMPAS_Limb::SolveLimb()
         TArray<FMPAS_LimbSegmentData> L_Segments = Segments;
         TArray<FMPAS_LimbSegmentState> L_State = TargetState;
 
+        float L_LimbMaxExtent = MaxExtent;
+
         const int32 L_MaxIterations = IK_MaxIterations;
         const float L_Tollerance = IK_ErrorTollerance;
         const FVector L_UpVector = GetUpVector();
@@ -256,8 +258,8 @@ void UMPAS_Limb::SolveLimb()
 
         if (EnableAsyncCalculation)
         {
-            // Calling the necessary algorithm on a background thread, so it doesn't waste the perfomance
-            AsyncTask( ENamedThreads::AnyBackgroundThreadNormalTask, [L_Algorithm, L_Segments, L_State, OriginLocation, TargetLocation, L_PoleTargets, L_MaxIterations, L_Tollerance, L_UpVector, L_EnableRollRecalculation, L_LimbRoll, this] ()
+            // Calling the necessary algorithm on a background thread, so it doesn't waste the perfomance of the main one
+            AsyncTask( ENamedThreads::AnyBackgroundThreadNormalTask, [L_Algorithm, L_Segments, L_State, OriginLocation, TargetLocation, L_PoleTargets, L_MaxIterations, L_Tollerance, L_UpVector, L_EnableRollRecalculation, L_LimbRoll, L_LimbMaxExtent, this] ()
             {
                 // New state declaration
                 TArray<FMPAS_LimbSegmentState> NewState;
@@ -268,7 +270,12 @@ void UMPAS_Limb::SolveLimb()
                 case EMPAS_LimbSolvingAlgorithm::FABRIK_IK: NewState = Solve_FABRIK_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_MaxIterations, L_Tollerance); break;
                 case EMPAS_LimbSolvingAlgorithm::CCD_IK: NewState = Solve_CCD_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_MaxIterations, L_Tollerance); break;
                 case EMPAS_LimbSolvingAlgorithm::PoleFABRIK_IK: NewState = Solve_PoleFABRIK_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_PoleTargets, L_MaxIterations, L_Tollerance, L_UpVector); break;
-                
+                case EMPAS_LimbSolvingAlgorithm::PistonMulti: NewState = Solve_Piston_Multi(OriginLocation, TargetLocation, L_Segments, L_State, L_LimbMaxExtent); break;
+                case EMPAS_LimbSolvingAlgorithm::PistonSequential: NewState = Solve_Piston_Sequential(OriginLocation, TargetLocation, L_Segments, L_State); break;
+                case EMPAS_LimbSolvingAlgorithm::RotateToTarget: NewState = Solve_RotateToTarget(OriginLocation, TargetLocation, L_Segments, L_State); break;
+
+                //case EMPAS_LimbSolvingAlgorithm::Gauss_Seidel: NewState = Solve_Gauss_Seidel_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_PoleTargets, L_MaxIterations, L_Tollerance, L_UpVector); break;
+
                 default: break;
                 }
 
@@ -296,7 +303,12 @@ void UMPAS_Limb::SolveLimb()
             case EMPAS_LimbSolvingAlgorithm::FABRIK_IK: NewState = Solve_FABRIK_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_MaxIterations, L_Tollerance); break;
             case EMPAS_LimbSolvingAlgorithm::CCD_IK: NewState = Solve_CCD_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_MaxIterations, L_Tollerance); break;
             case EMPAS_LimbSolvingAlgorithm::PoleFABRIK_IK: NewState = Solve_PoleFABRIK_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_PoleTargets, L_MaxIterations, L_Tollerance, L_UpVector); break;
-            
+            case EMPAS_LimbSolvingAlgorithm::PistonMulti: NewState = Solve_Piston_Multi(OriginLocation, TargetLocation, L_Segments, L_State, L_LimbMaxExtent); break;
+            case EMPAS_LimbSolvingAlgorithm::PistonSequential: NewState = Solve_Piston_Sequential(OriginLocation, TargetLocation, L_Segments, L_State); break;
+            case EMPAS_LimbSolvingAlgorithm::RotateToTarget: NewState = Solve_RotateToTarget(OriginLocation, TargetLocation, L_Segments, L_State); break;
+
+            //case EMPAS_LimbSolvingAlgorithm::Gauss_Seidel: NewState = Solve_Gauss_Seidel_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_PoleTargets, L_MaxIterations, L_Tollerance, L_UpVector); break;
+
             default: break;
             }
 
@@ -366,11 +378,28 @@ void UMPAS_Limb::InterpolateLimb(float DeltaTime)
 // Algorithms
 // 'static' because they are going to run in a background thread
 
-// Rotate To Target
-void UMPAS_Limb::Solve_RotateToTarget()
-{
 
+// Rotate To Target
+TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_RotateToTarget(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState)
+{
+    TArray<FMPAS_LimbSegmentState> State;
+    State.SetNum(InCurrentState.Num());
+
+    FVector Direction = (InTargetLocation - InOriginLocation).GetSafeNormal();
+    FRotator Rotation = Direction.Rotation();
+
+    State[0].Location = InOriginLocation;
+    State[0].Rotation = Rotation;
+
+    for (int32 i = 1; i < State.Num(); i++)
+    {
+        State[i].Location = State[i - 1].Location + Direction * InSegments[i - 1].Length;
+        State[i].Rotation = Rotation;
+    }
+
+    return State;
 }
+
 
 // FABRIK IK
 TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_FABRIK_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, int32 InMaxIterations, float InTollerance)
@@ -441,7 +470,8 @@ TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_CCD_IK(const FVector& InOriginL
 // PoleFABRIK IK - custom version of FABRIK IK, sligtly slower, but implements support for pole targets, making it the most usable algorithm ot of the ones presented here
 TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_PoleFABRIK_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, const TArray<FVector>& InPoleTargets, int32 InMaxIterations, float InTollerance, const FVector& InUpVector)
 {
-    TArray<FMPAS_LimbSegmentState> State = InCurrentState;
+    TArray<FMPAS_LimbSegmentState> State;
+    State.SetNum(InCurrentState.Num());
 
     // Reinitiating state to match pole targets
 
@@ -476,6 +506,73 @@ TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_PoleFABRIK_IK(const FVector& In
 
     return State;
 }
+
+// Turns the limb into a telescopic multi-stage piston for mechanical effects, all segments extend at the same time
+TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_Piston_Multi(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, float InLimbMaxExtent)
+{
+    TArray<FMPAS_LimbSegmentState> State;
+    State.SetNum(InCurrentState.Num());
+
+    float ExtentProportion = UKismetMathLibrary::FClamp(FVector::Distance(InOriginLocation, InTargetLocation) / InLimbMaxExtent, 0.f, 1.f);
+    FVector ExtentDirection = (InTargetLocation - InOriginLocation).GetSafeNormal();
+
+    FRotator Rotation = ExtentDirection.Rotation();
+
+    State[0].Location = InOriginLocation;
+    State[0].Rotation = Rotation;
+
+    for (int32 i = 1; i < State.Num() - 1; i++)
+    {
+        State[i].Location = State[i - 1].Location + ExtentDirection * InSegments[i - 1].Length - ExtentDirection * (i == 1 ? InSegments[0].Length + InSegments[1].Length : InSegments[i].Length) * (1 - ExtentProportion);
+
+        State[i].Rotation = Rotation;
+    }
+
+    State[State.Num() - 1].Location = State[State.Num() - 2].Location + ExtentDirection * InSegments[State.Num() - 2].Length;
+
+    return State;
+}
+
+
+// Turns the limb into a telescopic multi-stage piston for mechanical effects, segments extend one by one
+TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_Piston_Sequential(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState)
+{
+    TArray<FMPAS_LimbSegmentState> State = InCurrentState;
+
+    float RequiredDistance = FVector::Distance(InOriginLocation, InTargetLocation);
+    FVector ExtentDirection = (InTargetLocation - InOriginLocation).GetSafeNormal();
+
+    FRotator Rotation = ExtentDirection.Rotation();
+
+    State[0].Location = InOriginLocation;
+    State[0].Rotation = Rotation;
+
+    RequiredDistance = (RequiredDistance - InSegments[0].Length < 0) ? 0 : (RequiredDistance - InSegments[0].Length);
+
+    for (int32 i = 1; i < State.Num() - 1; i++)
+    {
+        float ExtentProportion = UKismetMathLibrary::FClamp(RequiredDistance / InSegments[i].Length, 0.f, 1.f);
+        
+        State[i].Location = State[i - 1].Location + ExtentDirection * InSegments[i - 1].Length - ExtentDirection * InSegments[i].Length * (1 - ExtentProportion);
+        State[i].Rotation = Rotation;
+
+        RequiredDistance = (RequiredDistance - InSegments[i].Length * ExtentProportion < 0) ? 0 : (RequiredDistance - InSegments[i].Length * ExtentProportion);
+    }
+
+    State[State.Num() - 1].Location = State[State.Num() - 2].Location + ExtentDirection * InSegments[State.Num() - 2].Length;
+
+    return State;
+}
+
+
+//// Gauss-Seidel IK
+//TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_Gauss_Seidel_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, const TArray<FVector>& InPoleTargets, int32 InMaxIterations, float InTollerance, const FVector& InUpVector)
+//{
+//    TArray<FMPAS_LimbSegmentState> State = InCurrentState;
+//
+//    return State;
+//}
+
 
 
 // Recalculating segment roll rotation
@@ -560,6 +657,32 @@ void UMPAS_Limb::ReinitLimb()
     InitLimb();
 }
 
+// Changes the element the limb origin is attached to (by default it is the limb parent)
+void UMPAS_Limb::OverrideAttachmentParent(UMPAS_RigElement* NewParent)
+{
+    if (NewParent)
+    {
+        SetVectorSourceValue(0, 0, ParentElement, FVector::ZeroVector);
+        SetRotationSourceValue(0, 0, ParentElement, FRotator::ZeroRotator);
+
+        ParentElement = NewParent;
+        FName ParentElementName = ParentElement->RigElementName;
+
+        // Parent location and rotation initial cache
+        SetVectorSourceValue(0, 0, ParentElement, ParentElement->GetComponentLocation());
+        SetRotationSourceValue(0, 0, ParentElement, ParentElement->GetComponentRotation());
+
+        // Self location and rotation fetching
+
+        // Setting initial location / rotation
+        InitialSelfTransform.SetLocation(UKismetMathLibrary::Quat_UnrotateVector(ParentElement->GetComponentRotation().Quaternion(), GetComponentLocation() - ParentElement->GetComponentLocation()));
+        InitialSelfTransform.SetRotation(UKismetMathLibrary::NormalizedDeltaRotator(GetComponentRotation(), ParentElement->GetComponentRotation()).Quaternion());
+
+        SetVectorSourceValue(0, 1, this, UKismetMathLibrary::Quat_RotateVector(ParentElement->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()));
+        SetRotationSourceValue(0, 1, this, FRotator(InitialSelfTransform.GetRotation()));
+    }
+}
+
 
 
 
@@ -612,6 +735,8 @@ void UMPAS_Limb::InitPhysicsModel(const TArray<UMPAS_PhysicsModelElement*>& InPh
 void UMPAS_Limb::UpdateRigElement(float DeltaTime)
 {
     Super::UpdateRigElement(DeltaTime);
+
+    if (IsCoreElement) return;
 
     SetWorldRotation(FRotator::ZeroRotator);
 

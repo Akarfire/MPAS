@@ -49,7 +49,7 @@ struct FMPAS_AdditionalLimbSegmentData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FVector2D PhysicsMeshExtent;
 
-	FMPAS_AdditionalLimbSegmentData(): AngularLimits(FRotator(90, 90, 90)), PhysicsMeshExtent(FVector2D(1, 1)) {} 
+	FMPAS_AdditionalLimbSegmentData(): AngularLimits(FRotator(360, 360, 360)), PhysicsMeshExtent(FVector2D(1, 1)) {}
 };
 
 
@@ -119,7 +119,16 @@ enum class EMPAS_LimbSolvingAlgorithm : uint8
 	FABRIK_IK UMETA(DisplayName="FABRIK IK"),
 
 	// Implements CCD IK algorithm
-	CCD_IK UMETA(DisplayName="CCD IK")
+	CCD_IK UMETA(DisplayName="CCD IK"),
+	
+	// Turns the limb into a telescopic multi-stage piston for mechanical effects, all segments extend at the same time
+	PistonMulti UMETA(DisplayName = "Piston Multi"),
+
+	// Turns the limb into a telescopic multi-stage piston for mechanical effects, segments extend one by one
+	PistonSequential UMETA(DisplayName = "Piston Sequential")
+
+	//// Gauss-Seidel IK approximation method (paper link: https://arxiv.org/pdf/2211.00330)
+	//Gauss_Seidel UMETA(DisplayName="Gauss-Seidel")
 };
 
 // What should be used as a target of the limb
@@ -316,6 +325,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="MPAS|Elements|Limb")
 	void ReinitLimb();
 
+	// Changes the element the limb origin is attached to (by default it is the limb parent)
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Elements|Limb")
+	void OverrideAttachmentParent(UMPAS_RigElement* NewParent);
+
 
 	// Returns the mesh, from which the bone chain will be fetched, !IF SetupType is set to FetchFromMesh!
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|Elements|Limb")
@@ -354,7 +367,7 @@ protected:
 	// 'static' because they are going to run in a background thread
 
 	// Rotate To Target
-	static void Solve_RotateToTarget();
+	static TArray<FMPAS_LimbSegmentState> Solve_RotateToTarget(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState);
 
 	// FABRIK IK
 	static TArray<FMPAS_LimbSegmentState> Solve_FABRIK_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, int32 InMaxIterations, float InTollerance);
@@ -364,6 +377,15 @@ protected:
 
 	// PoleFABRIK IK - custom version of FABRIK IK, sligtly slower, but implements support for pole targets, making it the most usable algorithm out of the ones presented here
 	static TArray<FMPAS_LimbSegmentState> Solve_PoleFABRIK_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, const TArray<FVector>& InPoleTargets, int32 InMaxIterations, float InTollerance, const FVector& InUpVector);
+
+	// Turns the limb into a telescopic multi-stage piston for mechanical effects, all segments extend at the same time
+	static TArray<FMPAS_LimbSegmentState> Solve_Piston_Multi(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, float InLimbMaxExtent);
+
+	// Turns the limb into a telescopic multi-stage piston for mechanical effects, segments extend one by one
+	static TArray<FMPAS_LimbSegmentState> Solve_Piston_Sequential(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState);
+
+	//// Gauss-Seidel IK (parer link: https://arxiv.org/pdf/2211.00330)
+	//static TArray<FMPAS_LimbSegmentState> Solve_Gauss_Seidel_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, const TArray<FVector>& InPoleTargets, int32 InMaxIterations, float InTollerance, const FVector& InUpVector);
 
 
 	// Recalculating segment roll rotation
