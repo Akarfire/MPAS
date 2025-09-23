@@ -18,5 +18,5 @@ class MPAS_API UMPAS_UtilityFunctionLibrary : public UBlueprintFunctionLibrary
 	
 	// A wrapper around LineTraceByChannel that can be called from direct objects descendants in Blueprints
 	UFUNCTION(BlueprintCallable, Category = "RawObjectCallable")
-	static void RawObjectLineTraceByChannel(AActor* ContextActor, struct FHitResult& OutHit, const FVector& Start, const FVector& End, ECollisionChannel TraceChannel);
+	static bool RawObjectLineTraceByChannel(AActor* ContextActor, struct FHitResult& OutHit, const FVector& Start, const FVector& End, ECollisionChannel TraceChannel);
 };

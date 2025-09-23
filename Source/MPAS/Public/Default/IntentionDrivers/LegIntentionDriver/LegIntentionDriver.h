@@ -19,6 +19,12 @@ class MPAS_API UMPAS_LegIntentionDriverState : public UMPAS_IntentionStateBase
 	// Body segments and legs corresponding to them
 	TMap<class UMPAS_BodySegment*, TArray <class UMPAS_Leg* >> LegsData;
 
+	// Map of leg target location vector layers for each leg
+	TMap<class UMPAS_Leg*, int32> TargetLayers;
+
+	// Map of effector shift vector layers for each leg
+	TMap<class UMPAS_Leg*, int32> EffectorShiftLayers;
+
 public:
 
 	// Constructor
@@ -48,13 +54,14 @@ protected:
 	 */
 	void CalculateEffectorShift(TArray<FVector>& OutShift, 
 								const FVector& InTarget, 
-								const TArray<TPair<FVector, FVector>>& InLimitations);
+								const TArray<TPair<FVector, FVector>>& InLimitations,
+								const FQuat& LimitSpaceRotation);
 
 	/* 
 	 * Clamps effector shift to it's limitations
 	 * OutClamped contains data, whether each individual offset was clamped
 	 */
-	void ClampShift(TArray<FVector>& InOutShift, TArray<bool>& OutClamped, const TArray<TPair<FVector, FVector>>& InLimitations);
+	void ClampShift(TArray<FVector>& InOutShift, TArray<bool>& OutClamped, const TArray<TPair<FVector, FVector>>& InLimitations, const FQuat& LimitSpaceRotation);
 
 	/*
 	 * Redistributes shift from leg's that hit there limitation to the ones that are still capable of moving 

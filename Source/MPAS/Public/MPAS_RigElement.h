@@ -78,8 +78,18 @@ struct FMPAS_VectorStack
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<int32> StackOrder;
 
+	// Since normal layers override everything that lies beneath them, it is logical to start compuatation from the top-most normal layer with blending factor of 1.0f
+	// But that layer may not be active for any number of reasons, so we cache all of the normal layer with blending factor of 1.0f in this array, so we can check if they are active in runtime
+	// Layer are identified by their stack order id and placed top to bottom (0 - the highest such layer)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<int32> StartingLayersCache;
+
 	// Adds a new layer into the stack and updates the stack order
 	int32 AddVectorLayer(FMPAS_VectorLayer InLayer);
+
+	// Recalucates StartingLayersCache array, should be called whenether a new layer is added/removed or some normal layer's blending factor is changed
+	void RecalculateStartingLayerCache();
+
 
 	int32 Num() { return Layers.Num(); }
 
@@ -136,8 +146,18 @@ struct FMPAS_RotatorStack
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<int32> StackOrder;
 
+	// Since normal layers override everything that lies beneath them, it is logical to start compuatation from the top-most normal layer with blending factor of 1.0f
+	// But that layer may not be active for any number of reasons, so we cache all of the normal layer with blending factor of 1.0f in this array, so we can check if they are active in runtime
+	// Layer are identified by their stack order id and placed top to bottom (0 - the highest such layer)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<int32> StartingLayersCache;
+
 	// Adds a new layer into the stack and updates the stack order
 	int32 AddRotatorLayer(FMPAS_RotatorLayer InLayer);
+
+	// Recalucates StartingLayersCache array, should be called whenether a new layer is added/removed or some normal layer's blending factor is changed
+	void RecalculateStartingLayerCache();
+
 
 	int32 Num() { return Layers.Num(); }
 

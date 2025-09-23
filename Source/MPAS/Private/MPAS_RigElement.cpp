@@ -205,9 +205,34 @@ FVector UMPAS_RigElement::CalculateVectorStackValue(int32 InVectorStackID)
 {
 	FVector FinalVector;
 
-	for (int32 LayerID : VectorStacks[InVectorStackID].StackOrder)
+	int32 StartingLayer = -1;
+	for (int32 i = 0; i < VectorStacks[InVectorStackID].StartingLayersCache.Num(); i++)
 	{
-		FMPAS_VectorLayer& Layer = VectorStacks[InVectorStackID].Layers[LayerID];
+		int32 StackOrderID = VectorStacks[InVectorStackID].StartingLayersCache[i];
+
+		FMPAS_VectorLayer& Layer = VectorStacks[InVectorStackID].Layers[VectorStacks[InVectorStackID].StackOrder[StackOrderID]];
+
+		if (!Layer.Enabled) continue;
+
+		bool HasActiveElements = false;
+		FinalVector = CalculateVectorLayerValue(Layer, HasActiveElements);
+
+		if (HasActiveElements && Layer.BlendingFactor == 1.0f)
+		{
+			StartingLayer = StackOrderID + 1; // +1 because we have already calculated this layer's value and stored it in FinalVector
+			break;
+		}
+	}
+
+	if (StartingLayer == -1) // Rare case, when there are no normal layers with blending factor of 1.0f are present
+	{
+		FinalVector = FVector::ZeroVector;
+		StartingLayer = 0;
+	}
+
+	for (int32 LayerOrderID = StartingLayer; LayerOrderID < VectorStacks[InVectorStackID].Num(); LayerOrderID++)
+	{
+		FMPAS_VectorLayer& Layer = VectorStacks[InVectorStackID].Layers[VectorStacks[InVectorStackID].StackOrder[LayerOrderID]];
 
 		if (!Layer.Enabled) continue;
 
@@ -243,7 +268,6 @@ FVector UMPAS_RigElement::CalculateVectorLayerValue(const FMPAS_VectorLayer InLa
 {
 	FVector OutVector = FVector(0, 0, 0);
 	int32 ActiveElementCount = 0;
-
 
 	FVector VectorSum = FVector(0, 0, 0);
 	FVector VectorM = FVector(1, 1, 1);
@@ -425,6 +449,10 @@ bool UMPAS_RigElement::SetVectorLayerBlendingFactor(int32 InVectorStackID, int32
 		return false;
 
 	VectorStacks[InVectorStackID][InVectorLayerID].BlendingFactor = InNewBlendingFactor;
+
+	if (VectorStacks[InVectorStackID][InVectorLayerID].BlendingMode == EMPAS_LayerBlendingMode::Normal)
+		VectorStacks[InVectorStackID].RecalculateStartingLayerCache();
+
 	return true;
 }
 
@@ -461,9 +489,34 @@ FRotator UMPAS_RigElement::CalculateRotationStackValue(int32 InRotationStackID)
 {
 	FRotator FinalRotation = FRotator::ZeroRotator;
 
-	for (int32 LayerID : RotationStacks[InRotationStackID].StackOrder)
+	int32 StartingLayer = -1;
+	for (int32 i = 0; i < RotationStacks[InRotationStackID].StartingLayersCache.Num(); i++)
 	{
-		FMPAS_RotatorLayer& Layer = RotationStacks[InRotationStackID].Layers[LayerID];
+		int32 StackOrderID = RotationStacks[InRotationStackID].StartingLayersCache[i];
+
+		FMPAS_RotatorLayer& Layer = RotationStacks[InRotationStackID].Layers[RotationStacks[InRotationStackID].StackOrder[StackOrderID]];
+
+		if (!Layer.Enabled) continue;
+
+		bool HasActiveElements = false;
+		FinalRotation = CalculateRotationLayerValue(Layer, HasActiveElements);
+
+		if (HasActiveElements && Layer.BlendingFactor == 1.0f)
+		{
+			StartingLayer = StackOrderID + 1; // +1 because we have already calculated this layer's value and stored it in FinalVector
+			break;
+		}
+	}
+
+	if (StartingLayer == -1) // Rare case, when there are no normal layers with blending factor of 1.0f are present
+	{
+		FinalRotation = FRotator::ZeroRotator;
+		StartingLayer = 0;
+	}
+
+	for (int32 LayerOrderID = StartingLayer; LayerOrderID < RotationStacks[InRotationStackID].Num(); LayerOrderID++)
+	{
+		FMPAS_RotatorLayer& Layer = RotationStacks[InRotationStackID].Layers[RotationStacks[InRotationStackID].StackOrder[LayerOrderID]];
 
 		if (!Layer.Enabled) continue;
 
@@ -647,6 +700,9 @@ bool UMPAS_RigElement::SetRotationLayerBlendingFactor(int32 InRotationStackID, i
 		return false;
 
 	RotationStacks[InRotationStackID][InRotationLayerID].BlendingFactor = InNewBlendingFactor;
+
+	if (RotationStacks[InRotationStackID][InRotationLayerID].BlendingMode == EMPAS_LayerBlendingMode::Normal)
+		RotationStacks[InRotationStackID].RecalculateStartingLayerCache();
 
 	return true;
 }
@@ -833,8 +889,19 @@ int32 FMPAS_VectorStack::AddVectorLayer(FMPAS_VectorLayer InLayer)
 	}
 
 	StackOrder[i + 1] = ID;
+	RecalculateStartingLayerCache();
 
 	return ID;
+}
+
+// Recalucates StartingLayersCache array, should be called whenether a new layer is added/removed or some normal layer's blending factor is changed
+void FMPAS_VectorStack::RecalculateStartingLayerCache()
+{
+	StartingLayersCache.Empty();
+
+	for (int32 i = Num() - 1; i >= 0; i--)
+		if (Layers[StackOrder[i]].BlendingMode == EMPAS_LayerBlendingMode::Normal && Layers[StackOrder[i]].BlendingFactor == 1.f)
+			StartingLayersCache.Add(i);
 }
 
 // Adds a new layer into the stack and updates the stack order
@@ -855,6 +922,17 @@ int32 FMPAS_RotatorStack::AddRotatorLayer(FMPAS_RotatorLayer InLayer)
 	}
 
 	StackOrder[i + 1] = ID;
+	RecalculateStartingLayerCache();
 
 	return ID;
+}
+
+// Recalucates StartingLayersCache array, should be called whenether a new layer is added/removed or some normal layer's blending factor is changed
+void FMPAS_RotatorStack::RecalculateStartingLayerCache()
+{
+	StartingLayersCache.Empty();
+
+	for (int32 i = Num() - 1; i >= 0; i--)
+		if (Layers[StackOrder[i]].BlendingMode == EMPAS_LayerBlendingMode::Normal && Layers[StackOrder[i]].BlendingFactor == 1.f)
+			StartingLayersCache.Add(i);
 }
