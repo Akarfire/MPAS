@@ -122,6 +122,15 @@ void UMPAS_Limb::InitLimb()
         }  
     }
 
+    // Merging segment data with additional data
+    if (AdditionalSegmentData.Num() > 0)
+        for (int i = 0; i < Segments.Num(); i++)
+        {
+            Segments[i].AngularLimits_Min = AdditionalSegmentData[UKismetMathLibrary::Clamp(i, 0, AdditionalSegmentData.Num() - 1)].AngularLimits_Min;
+            Segments[i].AngularLimits_Max = AdditionalSegmentData[UKismetMathLibrary::Clamp(i, 0, AdditionalSegmentData.Num() - 1)].AngularLimits_Max;
+            Segments[i].PhysicsMeshExtent = AdditionalSegmentData[UKismetMathLibrary::Clamp(i, 0, AdditionalSegmentData.Num() - 1)].PhysicsMeshExtent;
+        }
+
     // Fillin out target state with a default value of the initial state
     TargetState = CurrentState;
 }
@@ -143,14 +152,6 @@ void UMPAS_Limb::GeneratePhysicsModelConfiguration()
 
         PhysicsElementsConfiguration.Empty();
 
-        // Merging segment data with additional data
-        if (AdditionalSegmentData.Num() > 0)
-            for (int i = 0; i < Segments.Num(); i++)
-            {
-                Segments[i].AngularLimits = AdditionalSegmentData[UKismetMathLibrary::Clamp(i, 0, AdditionalSegmentData.Num() - 1)].AngularLimits;
-                Segments[i].PhysicsMeshExtent = AdditionalSegmentData[UKismetMathLibrary::Clamp(i, 0, AdditionalSegmentData.Num() - 1)].PhysicsMeshExtent;
-            }
-
         for (int i = 0; i < Segments.Num(); i++)
         {
             FMPAS_PhysicsElementConfiguration NewConfig;
@@ -167,8 +168,8 @@ void UMPAS_Limb::GeneratePhysicsModelConfiguration()
             NewConfig.ParentPhysicalAttachmentType = SegmentParentPhysicalAttachmentType;
 
             NewConfig.PhysicsConstraintLimits = FVector(LocationDrift, LocationDrift, LocationDrift);
-            if (Segments[i].AngularLimits != FRotator(0, 0, 0))
-                NewConfig.PhysicsAngularLimits = Segments[i].AngularLimits;
+           /* if (Segments[i].AngularLimits != FRotator(0, 0, 0))
+                NewConfig.PhysicsAngularLimits = Segments[i].AngularLimits;*/
 
             NewConfig.DisableCollisionWithParent = true;
 
@@ -225,7 +226,7 @@ void UMPAS_Limb::SolveLimb()
         TArray<FVector> L_PoleTargets;
 
         // Base value just to make sure there always is at least some kind of a pole target
-        FVector LastCalculatedPoleTarget = (OriginLocation + TargetLocation) / 2 + GetUpVector() * 100;
+        FVector LastCalculatedPoleTarget = (OriginLocation + TargetLocation) / 2 + GetUpVector() * 10000;
         
         for (int32 i = 0; i < Segments.Num(); i++)
         {
@@ -268,8 +269,10 @@ void UMPAS_Limb::SolveLimb()
                 switch (L_Algorithm)
                 {
                 case EMPAS_LimbSolvingAlgorithm::FABRIK_IK: NewState = Solve_FABRIK_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_MaxIterations, L_Tollerance); break;
+                case EMPAS_LimbSolvingAlgorithm::FABRIK_Limited_IK: NewState = Solve_FABRIK_Limited_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_MaxIterations, L_Tollerance); break;
                 case EMPAS_LimbSolvingAlgorithm::CCD_IK: NewState = Solve_CCD_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_MaxIterations, L_Tollerance); break;
                 case EMPAS_LimbSolvingAlgorithm::PoleFABRIK_IK: NewState = Solve_PoleFABRIK_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_PoleTargets, L_MaxIterations, L_Tollerance, L_UpVector); break;
+                case EMPAS_LimbSolvingAlgorithm::PoleFABRIK_Limited_IK: NewState = Solve_PoleFABRIK_Limited_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_PoleTargets, L_MaxIterations, L_Tollerance, L_UpVector); break;
                 case EMPAS_LimbSolvingAlgorithm::PistonMulti: NewState = Solve_Piston_Multi(OriginLocation, TargetLocation, L_Segments, L_State, L_LimbMaxExtent); break;
                 case EMPAS_LimbSolvingAlgorithm::PistonSequential: NewState = Solve_Piston_Sequential(OriginLocation, TargetLocation, L_Segments, L_State); break;
                 case EMPAS_LimbSolvingAlgorithm::RotateToTarget: NewState = Solve_RotateToTarget(OriginLocation, TargetLocation, L_Segments, L_State); break;
@@ -301,8 +304,10 @@ void UMPAS_Limb::SolveLimb()
             switch (L_Algorithm)
             {
             case EMPAS_LimbSolvingAlgorithm::FABRIK_IK: NewState = Solve_FABRIK_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_MaxIterations, L_Tollerance); break;
+            case EMPAS_LimbSolvingAlgorithm::FABRIK_Limited_IK: NewState = Solve_FABRIK_Limited_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_MaxIterations, L_Tollerance); break;
             case EMPAS_LimbSolvingAlgorithm::CCD_IK: NewState = Solve_CCD_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_MaxIterations, L_Tollerance); break;
             case EMPAS_LimbSolvingAlgorithm::PoleFABRIK_IK: NewState = Solve_PoleFABRIK_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_PoleTargets, L_MaxIterations, L_Tollerance, L_UpVector); break;
+            case EMPAS_LimbSolvingAlgorithm::PoleFABRIK_Limited_IK: NewState = Solve_PoleFABRIK_Limited_IK(OriginLocation, TargetLocation, L_Segments, L_State, L_PoleTargets, L_MaxIterations, L_Tollerance, L_UpVector); break;
             case EMPAS_LimbSolvingAlgorithm::PistonMulti: NewState = Solve_Piston_Multi(OriginLocation, TargetLocation, L_Segments, L_State, L_LimbMaxExtent); break;
             case EMPAS_LimbSolvingAlgorithm::PistonSequential: NewState = Solve_Piston_Sequential(OriginLocation, TargetLocation, L_Segments, L_State); break;
             case EMPAS_LimbSolvingAlgorithm::RotateToTarget: NewState = Solve_RotateToTarget(OriginLocation, TargetLocation, L_Segments, L_State); break;
@@ -410,20 +415,91 @@ TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_FABRIK_IK(const FVector& InOrig
 
     while ((Iteration < InMaxIterations) && (((State[State.Num() - 1].Location - InTargetLocation).Size() > InTollerance) || ((State[0].Location - InOriginLocation).Size() > InTollerance * 0.1f)))
     {
-        // Backward pass
+        // Forward-Reaching pass
         State[State.Num() - 1].Location = InTargetLocation;
         for (size_t i = State.Num() - 1; i > 0; i--)
         {
-            State[i - 1].Location = State[i].Location + (State[i - 1].Location - State[i].Location).GetSafeNormal() * InSegments[i - 1].Length;
-            State[i - 1].Rotation = UKismetMathLibrary::FindLookAtRotation(State[i - 1].Location, State[i].Location);
+            FVector DirectionVector = (State[i - 1].Location - State[i].Location).GetSafeNormal();
+
+            State[i - 1].Location = State[i].Location + DirectionVector * InSegments[i - 1].Length;
+            State[i - 1].Rotation = (-1 * DirectionVector).Rotation();
         }
 
-        // Forward pass
+        // Backward-Reaching pass
         State[0].Location = InOriginLocation;
         for (size_t i = 0; i < State.Num() - 1; i++)
         {
-            State[i + 1].Location = State[i].Location + (State[i + 1].Location - State[i].Location).GetSafeNormal() * InSegments[i].Length;
-            State[i].Rotation = UKismetMathLibrary::FindLookAtRotation(State[i].Location, State[i + 1].Location);
+            FVector DirectionVector = (State[i + 1].Location - State[i].Location).GetSafeNormal();
+
+            State[i + 1].Location = State[i].Location + DirectionVector * InSegments[i].Length;
+            State[i].Rotation = DirectionVector.Rotation();
+        }
+
+        Iteration++;
+    }
+
+    return State;
+}
+
+// FABRIK Limited
+TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_FABRIK_Limited_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, int32 InMaxIterations, float InTollerance)
+{
+    TArray<FMPAS_LimbSegmentState> State = InCurrentState;
+
+    size_t Iteration = 0;
+
+    while ((Iteration < InMaxIterations) && (((State[State.Num() - 1].Location - InTargetLocation).Size() > InTollerance) || ((State[0].Location - InOriginLocation).Size() > InTollerance * 0.1f)))
+    {
+        // Forward-Reaching pass
+        State[State.Num() - 1].Location = InTargetLocation;
+        for (size_t i = State.Num() - 1; i > 0; i--)
+        {
+            FVector DirectionVector = (State[i - 1].Location - State[i].Location).GetSafeNormal();
+
+            // Angular limits
+            if (i > 1)
+            {
+                FRotator DirectionRotation = (-1 * DirectionVector).Rotation();
+
+                FRotator RelativeRotation = UKismetMathLibrary::NormalizedDeltaRotator(DirectionRotation, State[i - 2].Rotation);
+                FRotator ClampedRelativeRotation = FRotator(
+                    UKismetMathLibrary::FClamp(RelativeRotation.Pitch, InSegments[i - 1].AngularLimits_Min.Pitch, InSegments[i - 1].AngularLimits_Max.Pitch),
+                    UKismetMathLibrary::FClamp(RelativeRotation.Yaw, InSegments[i - 1].AngularLimits_Min.Yaw, InSegments[i - 1].AngularLimits_Max.Yaw),
+                    UKismetMathLibrary::FClamp(RelativeRotation.Roll, InSegments[i - 1].AngularLimits_Min.Roll, InSegments[i - 1].AngularLimits_Max.Roll)
+                );
+
+                DirectionRotation = State[i - 2].Rotation + ClampedRelativeRotation;
+                DirectionVector = -1 * DirectionRotation.Vector();
+            }
+
+            State[i - 1].Location = State[i].Location + DirectionVector * InSegments[i - 1].Length;
+            State[i - 1].Rotation = (-1 * DirectionVector).Rotation();
+        }
+
+        // Backward-Reaching pass
+        State[0].Location = InOriginLocation;
+        for (size_t i = 0; i < State.Num() - 1; i++)
+        {
+            FVector DirectionVector = (State[i + 1].Location - State[i].Location).GetSafeNormal();
+
+            // Angular limits
+            if (i > 0)
+            {
+                FRotator DirectionRotation = DirectionVector.Rotation();
+
+                FRotator RelativeRotation = UKismetMathLibrary::NormalizedDeltaRotator(DirectionRotation, State[i - 1].Rotation);
+                FRotator ClampedRelativeRotation = FRotator(
+                    UKismetMathLibrary::FClamp(RelativeRotation.Pitch, InSegments[i].AngularLimits_Min.Pitch, InSegments[i].AngularLimits_Max.Pitch),
+                    UKismetMathLibrary::FClamp(RelativeRotation.Yaw, InSegments[i].AngularLimits_Min.Yaw, InSegments[i].AngularLimits_Max.Yaw),
+                    UKismetMathLibrary::FClamp(RelativeRotation.Roll, InSegments[i].AngularLimits_Min.Roll, InSegments[i].AngularLimits_Max.Roll)
+                );
+
+                DirectionRotation = State[i - 1].Rotation + ClampedRelativeRotation;
+                DirectionVector = DirectionRotation.Vector();
+            }
+
+            State[i + 1].Location = State[i].Location + DirectionVector * InSegments[i].Length;
+            State[i].Rotation = DirectionVector.Rotation();
         }
 
         Iteration++;
@@ -480,25 +556,105 @@ TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_PoleFABRIK_IK(const FVector& In
         State[i + 1].Location = State[i].Location + (InPoleTargets[i] - State[i].Location).GetSafeNormal() * InSegments[i].Length;
 
     // FABRIK iterating
-    // Solved locationss are projected onto a solution plane (see ProjectLocationOnToSolutionPlane description) to keep the movement naturall
+    // Solved locationss are projected onto a solution plane (see ProjectLocationOnToSolutionPlane description) to keep the movement natural
 
     size_t Iteration = 0;
     while ((Iteration < InMaxIterations) && (((State[State.Num() - 1].Location - InTargetLocation).Size() > InTollerance) || ((State[0].Location - InOriginLocation).Size() > InTollerance * 0.1f)))
     {
-        // Backward pass
+        // Forward-Reaching pass
         State[State.Num() - 1].Location = InTargetLocation;
         for (size_t i = State.Num() - 1; i > 0; i--)
         {
-            State[i - 1].Location = ProjectLocationOnToSolutionPlane(State[i].Location + (State[i - 1].Location - State[i].Location).GetSafeNormal() * InSegments[i - 1].Length, InOriginLocation, InTargetLocation, InPoleTargets[i - 1]);
-            State[i - 1].Rotation = UKismetMathLibrary::FindLookAtRotation(State[i - 1].Location, State[i].Location);
+            FVector DirectionVector = (State[i - 1].Location - State[i].Location).GetSafeNormal();
+
+            State[i - 1].Location = State[i].Location + DirectionVector * InSegments[i - 1].Length;
+            State[i - 1].Rotation = (-1 * DirectionVector).Rotation();
         }
 
-        // Forward pass
+        // Backward-Reaching pass
         State[0].Location = InOriginLocation;
         for (size_t i = 0; i < State.Num() - 2; i++)
         {
-            State[i + 1].Location = ProjectLocationOnToSolutionPlane(State[i].Location + (State[i + 1].Location - State[i].Location).GetSafeNormal() * InSegments[i].Length, InOriginLocation, InTargetLocation, InPoleTargets[i + 1]);
-            State[i].Rotation = UKismetMathLibrary::FindLookAtRotation(State[i].Location, State[i + 1].Location);
+            FVector DirectionVector = (State[i + 1].Location - State[i].Location).GetSafeNormal();
+
+            State[i + 1].Location = State[i].Location + DirectionVector * InSegments[i].Length;
+            State[i].Rotation = DirectionVector.Rotation();
+        }
+
+        Iteration++;
+    }
+
+    return State;
+}
+
+// PoleFABRIK IK - custom version of FABRIK IK, sligtly slower, but implements support for pole targets, making it the most usable algorithm ot of the ones presented here
+TArray<FMPAS_LimbSegmentState> UMPAS_Limb::Solve_PoleFABRIK_Limited_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, const TArray<FVector>& InPoleTargets, int32 InMaxIterations, float InTollerance, const FVector& InUpVector)
+{
+    TArray<FMPAS_LimbSegmentState> State;
+    State.SetNum(InCurrentState.Num());
+
+    // Reinitiating state to match pole targets
+
+    State[0].Location = InOriginLocation;
+    for (int32 i = 0; i < InSegments.Num(); i++)
+        State[i + 1].Location = State[i].Location + (InPoleTargets[i] - State[i].Location).GetSafeNormal() * InSegments[i].Length;
+
+    // FABRIK iterating
+    // Solved locationss are projected onto a solution plane (see ProjectLocationOnToSolutionPlane description) to keep the movement natural
+
+    size_t Iteration = 0;
+    while ((Iteration < InMaxIterations) && (((State[State.Num() - 1].Location - InTargetLocation).Size() > InTollerance) || ((State[0].Location - InOriginLocation).Size() > InTollerance * 0.1f)))
+    {
+        // Forward-Reaching pass
+        State[State.Num() - 1].Location = InTargetLocation;
+        for (size_t i = State.Num() - 1; i > 0; i--)
+        {
+            FVector DirectionVector = (State[i - 1].Location - State[i].Location).GetSafeNormal();
+
+            // Angular limits
+            if (i > 1)
+            {
+                FRotator DirectionRotation = (-1 * DirectionVector).Rotation();
+
+                FRotator RelativeRotation = UKismetMathLibrary::NormalizedDeltaRotator(DirectionRotation, State[i - 2].Rotation);
+                FRotator ClampedRelativeRotation = FRotator(
+                    UKismetMathLibrary::FClamp(RelativeRotation.Pitch, InSegments[i - 1].AngularLimits_Min.Pitch, InSegments[i - 1].AngularLimits_Max.Pitch),
+                    UKismetMathLibrary::FClamp(RelativeRotation.Yaw, InSegments[i - 1].AngularLimits_Min.Yaw, InSegments[i - 1].AngularLimits_Max.Yaw),
+                    UKismetMathLibrary::FClamp(RelativeRotation.Roll, InSegments[i - 1].AngularLimits_Min.Roll, InSegments[i - 1].AngularLimits_Max.Roll)
+                );
+
+                DirectionRotation = State[i - 2].Rotation + ClampedRelativeRotation;
+                DirectionVector = -1 * DirectionRotation.Vector();
+            }
+
+            State[i - 1].Location = State[i].Location + DirectionVector * InSegments[i - 1].Length;
+            State[i - 1].Rotation = (-1 * DirectionVector).Rotation();
+        }
+
+        // Backward-Reaching pass
+        State[0].Location = InOriginLocation;
+        for (size_t i = 0; i < State.Num() - 2; i++)
+        {
+            FVector DirectionVector = (State[i + 1].Location - State[i].Location).GetSafeNormal();
+
+            // Angular limits
+            if (i > 0)
+            {
+                FRotator DirectionRotation = DirectionVector.Rotation();
+
+                FRotator RelativeRotation = UKismetMathLibrary::NormalizedDeltaRotator(DirectionRotation, State[i - 1].Rotation);
+                FRotator ClampedRelativeRotation = FRotator(
+                    UKismetMathLibrary::FClamp(RelativeRotation.Pitch, InSegments[i].AngularLimits_Min.Pitch, InSegments[i].AngularLimits_Max.Pitch),
+                    UKismetMathLibrary::FClamp(RelativeRotation.Yaw, InSegments[i].AngularLimits_Min.Yaw, InSegments[i].AngularLimits_Max.Yaw),
+                    UKismetMathLibrary::FClamp(RelativeRotation.Roll, InSegments[i].AngularLimits_Min.Roll, InSegments[i].AngularLimits_Max.Roll)
+                );
+
+                DirectionRotation = State[i - 1].Rotation + ClampedRelativeRotation;
+                DirectionVector = DirectionRotation.Vector();
+            }
+
+            State[i + 1].Location = State[i].Location + DirectionVector * InSegments[i].Length;
+            State[i].Rotation = DirectionVector.Rotation();
         }
 
         Iteration++;
