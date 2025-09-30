@@ -67,7 +67,7 @@ void UMPAS_PhysicsModelElement::OnPhysicsModelEnabled()
     FetchElementPositionFromRigElement();
     SetPhysicsLinearVelocity(RigElement->GetDesiredPhysicsElementVelocity(PhysicsElementIndex));
 
-    RigElement->SetPositionSourceValue(TargetPositionStackID, 0, RigElement, GetComponentLocation() - RelativeTransform.GetLocation());
+    RigElement->SetVectorSourceValue(TargetPositionStackID, 0, RigElement, GetComponentLocation() - RelativeTransform.GetLocation());
     RigElement->SetRotationSourceValue(TargetRotationStackID, 0, RigElement, GetComponentRotation());
 }
 
@@ -95,7 +95,7 @@ void UMPAS_PhysicsModelElement::UpdatePhysicsElement(float DeltaTime)
 {
     if (RigElement && RigElement->GetPhysicsModelEnabled())
     {
-        RigElement->SetPositionSourceValue(TargetPositionStackID, 0, RigElement, GetComponentLocation() - RelativeTransform.GetLocation());
+        RigElement->SetVectorSourceValue(TargetPositionStackID, 0, RigElement, GetComponentLocation() - RelativeTransform.GetLocation());
         RigElement->SetRotationSourceValue(TargetRotationStackID, 0, RigElement, GetComponentRotation());
     }
 

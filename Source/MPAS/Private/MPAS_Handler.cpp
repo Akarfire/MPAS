@@ -4,10 +4,11 @@
 #include "MPAS_Handler.h"
 #include "Default/MPAS_Core.h"
 #include "MPAS_RigElement.h"
-#include "Default/RigElements/MPAS_VisualRigElement.h"
+#include "Default/RigElements/MPAS_VoidRigElement.h"
 #include "Kismet/GameplayStatics.h"
 #include "PhysicsEngine/PhysicsConstraintComponent.h"
 #include "PhysicsEngine/ConstraintInstanceBlueprintLibrary.h"
+#include "Default/RigElements/PositionDrivers/MPAS_PositionDriver.h"
 
 
 // Sets default values for this component's properties
@@ -40,6 +41,9 @@ void UMPAS_Handler::BeginPlay()
 
 	// Lings rig after initializing
 	LinkRig();
+
+	// Finalizes rig elements' setup
+	PostLinkSetupRig();
 	
 	SetupComplete = true;
 
@@ -101,8 +105,22 @@ void UMPAS_Handler::ScanElement(UMPAS_RigElement* RigElement, const FName& Paren
 	if (ParentElementName == "Core")
 		CoreElements.Add(Name);
 
-	// Whether the element is visual
-	bool IsVisual = Cast<UMPAS_VisualRigElement>(RigElement) != nullptr;
+	// Whether the element is void
+	bool IsVoid = Cast<UMPAS_VoidRigElement>(RigElement) != nullptr;
+
+	// Registering position drivers
+	UMPAS_PositionDriver* PositionDriver = Cast<UMPAS_PositionDriver>(RigElement);
+	if (PositionDriver)
+	{
+		// Generating unique name for the driver (if the specified name is already occupied)
+		FName UniqueName = PositionDriver->DriverName;
+		int32 Index = 0;
+
+		while (PositionDrivers.Contains(UniqueName))
+			UniqueName = FName(PositionDriver->DriverName.ToString() + "_" + FString::FromInt(Index++));
+
+		PositionDrivers.Add(UniqueName, PositionDriver);
+	}
 	
 	// Getting all children of this element
 	TArray<USceneComponent*> CoreChildComponents;
@@ -121,7 +139,7 @@ void UMPAS_Handler::ScanElement(UMPAS_RigElement* RigElement, const FName& Paren
 			ElementData.AddChildElement(ChildName);
 
 			// Scanning child elements
-			ScanElement(ChildElement, (!IsVisual) ? Name : ParentElementName);
+			ScanElement(ChildElement, (!IsVoid) ? Name : ParentElementName);
 		}
 	}
 
@@ -148,6 +166,13 @@ void UMPAS_Handler::LinkRig()
 {
 	for (auto& RigElement: RigData)
 		RigElement.Value.RigElement->LinkRigElement(this);
+}
+
+// Finalizes rig elements' setup
+void UMPAS_Handler::PostLinkSetupRig()
+{
+	for (auto& RigElement : RigData)
+		RigElement.Value.RigElement->PostLinkSetupRigElement(this);
 }
 
 // Calls OnRigSetupFinished on all Intention Drivers

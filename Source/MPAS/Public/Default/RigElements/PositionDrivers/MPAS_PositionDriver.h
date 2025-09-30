@@ -1,0 +1,96 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "MPAS_RigElement.h"
+#include "MPAS_PositionDriver.generated.h"
+
+USTRUCT()
+struct FMPAS_PositionDrivenElementData
+{
+	GENERATED_USTRUCT_BODY()
+
+	UMPAS_RigElement* RigElement;
+
+	int32 LocationStackID;
+	int32 LocationLayerID;
+
+	int32 RotationStackID;
+	int32 RotationLayerID;
+
+	FMPAS_PositionDrivenElementData(UMPAS_RigElement* InRigElement = nullptr, int32 InLocationStackID = 0, int32 InLocationLayerID = 0, int32 InRotationStackID = 0, int32 InRotationLayerID = 0):
+		RigElement(InRigElement), LocationStackID(InLocationStackID), LocationLayerID(InLocationLayerID), RotationStackID(InRotationStackID), RotationLayerID(InRotationLayerID)
+	{}
+};
+
+
+/**
+ * 
+ */
+UCLASS(Blueprintable, ClassGroup = (Custom))
+class MPAS_API UMPAS_PositionDriver : public UMPAS_RigElement
+{
+	GENERATED_BODY()
+
+// Data
+protected:
+
+	// A map of all elements affected by this position driver
+	TMap<UMPAS_RigElement*, FMPAS_PositionDrivenElementData> DrivenElements;
+
+	// An array of pointers to all of the driven elements in the same order as they are added into the map
+	// Cached once
+	TArray<UMPAS_RigElement*> DrivenElementsList;
+	
+public:
+
+	// Name of the position driver, that is going to be used to address it through the handler
+	// Cached on rig initialization, further changes will not have results
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Default|PositionDriver")
+	FName DriverName = "PositionDriver";
+
+// Methods
+protected:
+
+
+public:	
+
+	UMPAS_PositionDriver() {}
+
+
+	// VIRTUAL, Calculates the required transform (location and rotation) for the specified element, 
+	// If the specified element is not one of the affected by this Position Driver, then the result depends on the implementation
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "MPAS|Elements|PositionDriver")
+	void CalculateElementTransform(FVector& OutLocation, FRotator& OutRotation, UMPAS_RigElement* InRigElement);
+	virtual void CalculateElementTransform_Implementation(FVector& OutLocation, FRotator& OutRotation, UMPAS_RigElement* InRigElement)
+	{
+		OutLocation = GetComponentLocation();
+		OutRotation = GetComponentRotation();
+	}
+
+	// VIRTUAL, Called right after the position driver has gathered data about it's driven elements
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "MPAS|Elements|PositionDriver")
+	void OnPositionDriverInitialized();
+	virtual void OnPositionDriverInitialized_Implementation() {}
+	
+
+
+	// DATA GETTERS
+
+	// Returns an array, containing pointers to all of the rig elements that are affected by this position driver
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|Elements|PositionDriver")
+	TArray<UMPAS_RigElement*> GetDrivenElementsList() { return DrivenElementsList; }
+
+	// CALLED BY THE HANDLER
+	// 
+	// Initializing Rig Element
+	virtual void InitRigElement(class UMPAS_Handler* InHandler) override;
+
+	// CALLED BY THE HANDLER : Contains the logic that links this element with other elements in the rig
+	virtual void LinkRigElement(class UMPAS_Handler* InHandler) override;
+
+	// Updating Rig Element every tick
+	virtual void UpdateRigElement(float DeltaTime) override;
+
+};

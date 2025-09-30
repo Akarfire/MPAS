@@ -11,6 +11,9 @@
 // Called when the state is made active
 void UMPAS_LegIntentionDriverState::EnterState_Implementation()
 {
+	LegsData.Empty();
+	TargetLayers.Empty();
+
 	// Scanning the rig to find legs and their parent body segments
 	// This intention driver will only control leg's that are attached to body segments (ignoring visual elements like limbs)
 	for (auto& RigElementDataPair : GetHandler()->GetRigData())
@@ -27,6 +30,9 @@ void UMPAS_LegIntentionDriverState::EnterState_Implementation()
 		{
 			if (LegsData.Contains(ParentBody)) LegsData[ParentBody].Add(Leg);
 			else LegsData.Add(ParentBody, TArray<UMPAS_Leg*> { Leg });
+
+			TargetLayers.Add(Leg, Leg->RegisterVectorLayer(Leg->GetTargetLocationStackID(), "IntentionDrivenLegTarget", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 1, true));
+			EffectorShiftLayers.Add(Leg, Leg->RegisterVectorLayer(Leg->GetEffectorShiftStackID(), "IntentionDrivenEffectorShift", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 1, true));
 		}
 	}
 }
@@ -68,7 +74,7 @@ void UMPAS_LegIntentionDriverState::UpdateState_Implementation(float DeltaTime)
 			// If leg's placement was succesful we fetch it's data and mark it as an active leg
 
 			// Setting leg's target location
-			Leg->LegTargetLocation = PlacementLocation;
+			Leg->SetVectorSourceValue(Leg->GetTargetLocationStackID(), TargetLayers[Leg], Leg, PlacementLocation);
 
 			// Marking leg as active
 			ActiveLegs.Add(Leg);
@@ -93,11 +99,11 @@ void UMPAS_LegIntentionDriverState::UpdateState_Implementation(float DeltaTime)
 		// Calculating target value
 		FVector Target = DesiredLocation - LegAverageLocation;
 
-		CalculateEffectorShift(Shift, Target, ShiftLimitations);
+		CalculateEffectorShift(Shift, Target, ShiftLimitations, Body->GetComponentQuat());
 
 		// Setting leg shift with interpolation
 		for (int i = 0; i < ActiveLegs.Num(); i++)
-			ActiveLegs[i]->EffectorShift = Shift[i];
+			ActiveLegs[i]->SetVectorSourceValue(ActiveLegs[i]->GetEffectorShiftStackID(), EffectorShiftLayers[ActiveLegs[i]], ActiveLegs[i], Shift[i]);
 	}
 }
 
@@ -116,7 +122,7 @@ FVector UMPAS_LegIntentionDriverState::PlaceLegTargetLocation(const FVector& Des
 * Calculates effector shift for each leg, described by Limitations (Size of Limitations = number of legs that will be processed)
 * Puts the result into OutShift (it MUST already have the required size)
 */
-void UMPAS_LegIntentionDriverState::CalculateEffectorShift(TArray<FVector>& OutShift, const FVector& InTarget, const TArray<TPair<FVector, FVector>>& InLimitations)
+void UMPAS_LegIntentionDriverState::CalculateEffectorShift(TArray<FVector>& OutShift, const FVector& InTarget, const TArray<TPair<FVector, FVector>>& InLimitations, const FQuat& LimitSpaceRotation)
 {
 	// Assigning target shift value to each leg
 	for (int i = 0; i < OutShift.Num(); i++) OutShift[i] = InTarget;
@@ -126,13 +132,13 @@ void UMPAS_LegIntentionDriverState::CalculateEffectorShift(TArray<FVector>& OutS
 	ClampCache.Init(false, OutShift.Num());
 
 	// Initial clamp
-	ClampShift(OutShift, ClampCache, InLimitations);
+	ClampShift(OutShift, ClampCache, InLimitations, LimitSpaceRotation);
 
 	// Redistribution iterations
 	for (int i = 1; i < OutShift.Num(); i++)
 	{
 		ShiftRedistributionIteration(OutShift, InTarget, ClampCache);
-		ClampShift(OutShift, ClampCache, InLimitations);
+		ClampShift(OutShift, ClampCache, InLimitations, LimitSpaceRotation);
 	}
 }
 
@@ -140,12 +146,16 @@ void UMPAS_LegIntentionDriverState::CalculateEffectorShift(TArray<FVector>& OutS
 * Clamps effector shift to it's limitations
 * OutClamped contains data, whether each individual offset was clamped
 */
-void UMPAS_LegIntentionDriverState::ClampShift(TArray<FVector>& InOutShift, TArray<bool>& OutClamped, const TArray<TPair<FVector, FVector>>& InLimitations)
+void UMPAS_LegIntentionDriverState::ClampShift(TArray<FVector>& InOutShift, TArray<bool>& OutClamped, const TArray<TPair<FVector, FVector>>& InLimitations, const FQuat& LimitSpaceRotation)
 {
 	for (int i = 0; i < InOutShift.Num(); i++)
 	{
 		FVector PreviousShift = InOutShift[i];
-		InOutShift[i] = ClampVector(InOutShift[i], InLimitations[i].Key, InLimitations[i].Value);
+
+		FVector LocalizedShift = UKismetMathLibrary::Quat_UnrotateVector(LimitSpaceRotation, InOutShift[i]);
+		FVector LimitedLocalizedShift = ClampVector(LocalizedShift, InLimitations[i].Key, InLimitations[i].Value);
+
+		InOutShift[i] = LimitSpaceRotation.RotateVector(LimitedLocalizedShift);
 
 		OutClamped[i] = !UKismetMathLibrary::EqualEqual_VectorVector(InOutShift[i], PreviousShift);
 	}

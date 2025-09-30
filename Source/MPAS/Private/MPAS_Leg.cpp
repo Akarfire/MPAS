@@ -6,6 +6,7 @@
 #include "Default/MPAS_Core.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Curves/RichCurve.h"
+#include "Default/RigElements/MPAS_BodySegment.h"
 
 // Constructor
 UMPAS_Leg::UMPAS_Leg()
@@ -47,10 +48,18 @@ void UMPAS_Leg::InitRigElement(UMPAS_Handler* InHandler)
 
 	InHandler->SubscribeToParameter("CurrentLegGroup", this, "OnParameterChanged");
 
-	// Absolute position layer - overrides default stack layers before it, detaching the leg from it's parent and placing it in world space
-	SelfAbsolutePositionLayerID = RegisterPositionLayer(0, "AbsoluteLegPosition", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, true);
-	SetPositionSourceValue(0, SelfAbsolutePositionLayerID, this, GetComponentLocation());
+
+	// Absolute location layer - overrides default stack layers before it, detaching the leg from it's parent and placing it in world space
+	SelfAbsoluteLocationLayerID = RegisterVectorLayer(0, "AbsoluteLegLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 0, true);
+	SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, GetComponentLocation());
 	
+	// Leg target location stack
+	LegTargetLocationStackID = RegisterVectorStack("LegTargetLocation");
+	RegisterVectorLayer(LegTargetLocationStackID, "BasicTargetLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 0, true);
+
+	// Effector shift stack
+	EffectorShiftStackID = RegisterVectorStack("EffectorShift");
+
 
 	// Intention Driven Parameters
 	if (!InHandler->IsFloatParameterValid("INTENTION_LEGS_StepLengthMultiplier"))
@@ -78,11 +87,13 @@ void UMPAS_Leg::LinkRigElement(class UMPAS_Handler* InHandler)
 {
 	Super::LinkRigElement(InHandler);
 
+	if (!ParentElement) return;
+
 	// Fetching leg target offset
 	LegTargetOffset = GetComponentLocation() - ParentElement->GetComponentLocation();
 
 	// Registers the effector layer
-	LegEffectorLayerID = ParentElement->RegisterPositionLayer(0, "LegsPositionEffector", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Average);
+	LegEffectorLayerID = ParentElement->RegisterVectorLayer(0, "LegsLocationEffector", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Average);
 
 	// Get resting pose offset
 	LegRestingPoseOffset = GetComponentLocation() - ParentElement->GetComponentLocation();
@@ -90,12 +101,14 @@ void UMPAS_Leg::LinkRigElement(class UMPAS_Handler* InHandler)
 	// Stability effector registration
 	ParentElement->SetStabilityEffectorValue(this, 1.f);
 
+	ParentBody = Cast<UMPAS_BodySegment>(ParentElement);
+
 	// Initial Leg Placement
 	FVector TraceResult = FootTrace(ParentElement->GetComponentLocation() + ParentElement->GetComponentRotation().RotateVector(LegRestingPoseOffset));
 	if (TraceResult != FVector(0, 0, 0))
 	{
 		SetRigElementActive(true);
-		SetPositionSourceValue(0, SelfAbsolutePositionLayerID, this, TraceResult);
+		SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, TraceResult);
 	}
 
 	else
@@ -107,6 +120,8 @@ void UMPAS_Leg::LinkRigElement(class UMPAS_Handler* InHandler)
 void UMPAS_Leg::UpdateRigElement(float DeltaTime)
 {
 	Super::UpdateRigElement(DeltaTime);
+
+	if (!ParentElement) return;
 
 	if (FootBone != FName())
 		Handler->SetBoneTransform(FootBone, GetComponentTransform());
@@ -131,19 +146,22 @@ void UMPAS_Leg::UpdateRigElement(float DeltaTime)
 	// If element is active 
 	if (GetRigElementActive())
 	{
-		RealEffectorShift = UKismetMathLibrary::VInterpTo(RealEffectorShift, EffectorShift, DeltaTime, EffectorShiftInterpolationSpeed);
-		ParentElement->SetPositionSourceValue(0, LegEffectorLayerID, this, GetComponentLocation() + RealEffectorShift);
+		RealEffectorShift = UKismetMathLibrary::VInterpTo(RealEffectorShift, CalculateVectorStackValue(EffectorShiftStackID), DeltaTime, EffectorShiftInterpolationSpeed);
+
+		FVector LocalLimitedRealEffectorShift = ClampVector(UKismetMathLibrary::Quat_UnrotateVector(GetComponentQuat(), RealEffectorShift), EffectorShift_Min, EffectorShift_Max);
+
+		ParentElement->SetVectorSourceValue(0, LegEffectorLayerID, this, GetComponentLocation() + ParentElement->GetComponentQuat().RotateVector(LocalLimitedRealEffectorShift));
 	}
 
 	else if (GetStabilityStatus() == EMPAS_StabilityStatus::Stable)
 	{
-		SetPositionSourceValue(0, SelfAbsolutePositionLayerID, this, ParentElement->GetComponentLocation() + ParentElement->GetComponentRotation().RotateVector(LegRestingPoseOffset) + InactiveOffset);
+		SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, ParentElement->GetComponentLocation() + ParentElement->GetComponentRotation().RotateVector(LegRestingPoseOffset) + InactiveOffset);
 
 		FVector TraceResult = FootTrace(ParentElement->GetComponentLocation() +  ParentElement->GetComponentRotation().RotateVector(LegRestingPoseOffset));
 		if (TraceResult != FVector(0, 0, 0))
 		{
 			SetRigElementActive(true);
-			SetPositionSourceValue(0, SelfAbsolutePositionLayerID, this, TraceResult);
+			SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, TraceResult);
 			ParentElement->SetStabilityEffectorValue(this, 1.f);
 		}
 	}
@@ -154,29 +172,33 @@ void UMPAS_Leg::UpdateRigElement(float DeltaTime)
 		if (TraceResult != FVector(0, 0, 0))
 		{
 			SetRigElementActive(true);
-			SetPositionSourceValue(0, SelfAbsolutePositionLayerID, this, TraceResult);
+			SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, TraceResult);
 			ParentElement->SetStabilityEffectorValue(this, 1.f);
 		}
 	}
 }
 
 
-// Returns leg's target position
-FVector UMPAS_Leg::GetTargetPosition()
+// Returns leg's target location
+FVector UMPAS_Leg::GetTargetLocation()
 {
+	// Basic target location calculation
+	if (ParentBody)
+		SetVectorSourceValue(LegTargetLocationStackID, 0, this, ParentBody->GetDesiredRotation().RotateVector(GetLegTargetOffset()) + ParentBody->GetDesiredLocation());
+
 	//(ParentElement->GetComponentRotation().RotateVector(LegTargetOffset) + ParentElement->GetComponentLocation())
-	return LegTargetLocation;
+	return CalculateVectorStackValue(LegTargetLocationStackID);
 }
 
 
-// Casts a trace that finds a suitable foot position, (0, 0, 0) if failed
-FVector UMPAS_Leg::FootTrace(const FVector& StepTargetPosition)
+// Casts a trace that finds a suitable foot location, (0, 0, 0) if failed
+FVector UMPAS_Leg::FootTrace(const FVector& StepTargetLocation)
 {
-	FVector StartPosition = StepTargetPosition + GetUpVector() * MaxFootElevation;
-	FVector EndPosition = StepTargetPosition - GetUpVector() * MaxFootVerticalExtent;
+	FVector StartLocation = StepTargetLocation + GetUpVector() * MaxFootElevation;
+	FVector EndLocation = StepTargetLocation - GetUpVector() * MaxFootVerticalExtent;
 
 	FHitResult Hit;
-	if (GetWorld()->LineTraceSingleByChannel(Hit, StartPosition, EndPosition, ECC_Visibility))
+	if (GetWorld()->LineTraceSingleByChannel(Hit, StartLocation, EndLocation, ECC_Visibility))
 		return Hit.Location;
 
 	// If no location was found FVector(0.f, 0.f, 0.f) is returned
@@ -188,12 +210,12 @@ FVector UMPAS_Leg::FootTrace(const FVector& StepTargetPosition)
 // Checks whether the leg should make a step
 bool UMPAS_Leg::ShouldStep()
 {
-	FVector CurrentFootPosition = GetComponentLocation() * ( FVector(1) - GetUpVector() );
-	FVector TargetFootPosition = GetTargetPosition() * ( FVector(1) - GetUpVector() );
+	FVector CurrentFootLocation = GetComponentLocation() * ( FVector(1) - GetUpVector() );
+	FVector TargetFootLocation = GetTargetLocation() * ( FVector(1) - GetUpVector() );
 
 	//float MaxStepLength = abs(StepLength - FVector::Distance(GetComponentLocation() * (FVector(1) - GetUpVector()), (ParentElement->GetComponentLocation() + ParentElement->GetComponentRotation().RotateVector(LegRestingPoseOffset)) * (FVector(1) - GetUpVector())));
 	float MaxStepLength = StepTriggerDistance * StepLengthMultiplier * StepTriggerDistanceMultiplier * SpeedMultiplier;
-	bool StepCondition = FVector::Distance(CurrentFootPosition, TargetFootPosition) > FMath::Min(StepTriggerDistance * StepTriggerDistanceMultiplier, MaxStepLength);
+	bool StepCondition = FVector::Distance(CurrentFootLocation, TargetFootLocation) > FMath::Min(StepTriggerDistance * StepTriggerDistanceMultiplier, MaxStepLength);
 
 	return StepCondition;
 }
@@ -232,7 +254,7 @@ void UMPAS_Leg::StartStepAnimation()
 
 	StepAnimationStartLocation = GetComponentLocation();
 
-	FVector StepVector = GetTargetPosition() - GetComponentLocation();
+	FVector StepVector = GetTargetLocation() - GetComponentLocation();
 	FVector StepDirection = StepVector;
 	StepDirection.Normalize();
 
@@ -247,7 +269,7 @@ void UMPAS_Leg::StartStepAnimation()
 	if (StepAnimationTargetLocation == FVector(0, 0, 0))
 	{
 		SetRigElementActive(false);
-		ParentElement->RemovePositionSourceValue(0, LegEffectorLayerID, this);
+		ParentElement->RemoveVectorSourceValue(0, LegEffectorLayerID, this);
 		ParentElement->SetStabilityEffectorValue(this, 0.f);
 	}
 
@@ -282,7 +304,7 @@ void UMPAS_Leg::OnStepAnimationTimelineUpdated(FName InTimelineName, float Curre
 			ResultingStepHeight = StepHeight * StepHeightScalingCurve->GetFloatValue(StepDistance / (StepLength * StepLengthMultiplier));
 
 		FVector NewLocation = FMath::Lerp(StepAnimationStartLocation, StepAnimationTargetLocation, ExtentFactor) + GetUpVector() * ResultingStepHeight * HeightFactor;
-		SetPositionSourceValue(0, SelfAbsolutePositionLayerID, this, NewLocation);
+		SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, NewLocation);
 	}
 }
 
@@ -327,7 +349,7 @@ void UMPAS_Leg::OnPhysicsModelDisabled_Implementation()
 {
 	if (PhysicsElements.IsValidIndex(0))
 		if(PhysicsElements[0])
-			SetPositionSourceValue(0, SelfAbsolutePositionLayerID, this, PhysicsElements[0]->GetComponentLocation());
+			SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, PhysicsElements[0]->GetComponentLocation());
 }	
 
 

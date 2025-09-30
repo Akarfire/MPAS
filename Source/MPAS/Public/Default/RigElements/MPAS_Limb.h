@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "MPAS_VisualRigElement.h"
+#include "MPAS_VoidRigElement.h"
 #include "MPAS_Limb.generated.h"
 
 
@@ -49,7 +49,7 @@ struct FMPAS_AdditionalLimbSegmentData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FVector2D PhysicsMeshExtent;
 
-	FMPAS_AdditionalLimbSegmentData(): AngularLimits(FRotator(90, 90, 90)), PhysicsMeshExtent(FVector2D(1, 1)) {} 
+	FMPAS_AdditionalLimbSegmentData(): AngularLimits(FRotator(360, 360, 360)), PhysicsMeshExtent(FVector2D(1, 1)) {}
 };
 
 
@@ -60,27 +60,27 @@ struct FMPAS_LimbSegmentState
 {
 	GENERATED_USTRUCT_BODY()
 
-	// The root position of the segment
+	// The root location of the segment
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FVector Position;
+	FVector Location;
 
 	// The rotation of the segment
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FRotator Rotation;
 
-	FMPAS_LimbSegmentState(): Position(FVector(0, 0, 0)), Rotation(FRotator(0, 0, 0)) {}
+	FMPAS_LimbSegmentState(): Location(FVector(0, 0, 0)), Rotation(FRotator(0, 0, 0)) {}
 };
 
 
-// How should a limb pole target position be calcualted
+// How should a limb pole target location be calcualted
 UENUM(BlueprintType)
-enum class EMPAS_LimbPoleTargetPositionMode : uint8
+enum class EMPAS_LimbPoleTargetLocationMode : uint8
 {
-	// Pole target position will be calculated automatically, using settings provided in FMPAS_LimbPoleTarget
+	// Pole target location will be calculated automatically, using settings provided in FMPAS_LimbPoleTarget
 	AutoCalculation UMETA(DisplayName="Auto Calculation"),
 
-	// Use a custom position stack as a pole target (stack is located in the limb component)
-	PoleTargetPositionStack UMETA(DisplayName="Pole Target Position Stack")
+	// Use a custom location stack as a pole target (stack is located in the limb component)
+	PoleTargetLocationStack UMETA(DisplayName="Pole Target Location Stack")
 };
 
 // Contains settings of a sinlge pole target, assigned to a bone segment
@@ -89,19 +89,19 @@ struct FMPAS_LimbPoleTarget
 {
 	GENERATED_USTRUCT_BODY()
 
-	// How should a limb pole target position be calcualted
+	// How should a limb pole target location be calcualted
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	EMPAS_LimbPoleTargetPositionMode PositionMode;
+	EMPAS_LimbPoleTargetLocationMode LocationMode;
 
 	// Offset of the pole target in relativity to limb origin and limb target 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FVector AUTO_PoleTargetOffset;
 
-	// ID of a postion stack, created for this pole target (if PositionMode is set to PoleTargetPositionStack)
+	// ID of a postion stack, created for this pole target (if LocationMode is set to PoleTargetLocationStack)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	int32 STACK_PositionStackID;
+	int32 STACK_VectorStackID;
 
-	FMPAS_LimbPoleTarget(): PositionMode(EMPAS_LimbPoleTargetPositionMode::AutoCalculation), AUTO_PoleTargetOffset(FVector(0, 0, 0)), STACK_PositionStackID(0) {}
+	FMPAS_LimbPoleTarget(): LocationMode(EMPAS_LimbPoleTargetLocationMode::AutoCalculation), AUTO_PoleTargetOffset(FVector(0, 0, 0)), STACK_VectorStackID(0) {}
 };
 
 
@@ -119,7 +119,16 @@ enum class EMPAS_LimbSolvingAlgorithm : uint8
 	FABRIK_IK UMETA(DisplayName="FABRIK IK"),
 
 	// Implements CCD IK algorithm
-	CCD_IK UMETA(DisplayName="CCD IK")
+	CCD_IK UMETA(DisplayName="CCD IK"),
+	
+	// Turns the limb into a telescopic multi-stage piston for mechanical effects, all segments extend at the same time
+	PistonMulti UMETA(DisplayName = "Piston Multi"),
+
+	// Turns the limb into a telescopic multi-stage piston for mechanical effects, segments extend one by one
+	PistonSequential UMETA(DisplayName = "Piston Sequential")
+
+	//// Gauss-Seidel IK approximation method (paper link: https://arxiv.org/pdf/2211.00330)
+	//Gauss_Seidel UMETA(DisplayName="Gauss-Seidel")
 };
 
 // What should be used as a target of the limb
@@ -129,8 +138,8 @@ enum class EMPAS_LimbTargetType : uint8
 	// Use the first child component of the limb as a target
 	FirstChildComponent UMETA(DisplayName="First Child Component"),
 
-	// Use a custom position stack as a target (stack is located in the limb component)
-	TargetPositionStack UMETA(DisplayName="Target Position Stack")
+	// Use a custom vector stack as a target (stack is located in the limb component)
+	TargetVectorStack UMETA(DisplayName="Target Vector Stack")
 };
 
 // How should the limb segments be set up?
@@ -151,7 +160,7 @@ enum class EMPAS_LimbSetupType : uint8
  * A segmented limb component, that can be animated using Inverse Kinematics or similiar algorithms
  */
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
-class MPAS_API UMPAS_Limb : public UMPAS_VisualRigElement
+class MPAS_API UMPAS_Limb : public UMPAS_VoidRigElement
 {
 	GENERATED_BODY()
 	
@@ -173,7 +182,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|Limb")
 	EMPAS_LimbSetupType SetupType;
 
-	// EXPERIMENTAL How fast the limb transitions to a new calculated position ( 0 - means instant transition), can cause weird behavior with RollRecalculation
+	// EXPERIMENTAL How fast the limb transitions to a new calculated location ( 0 - means instant transition), can cause weird behavior with RollRecalculation
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|Limb|Interpolation")
 	float LimbInterpolationSpeed = 0.f;
 
@@ -198,7 +207,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|Limb|InverseKinematics")
 	int32 IK_MaxIterations = 32;
 	
-	// Inverse kinematics positional error tollerance, higher values mean less iterations on average (better perfomance, less accurate results)
+	// Inverse kinematics location error tollerance, higher values mean less iterations on average (better perfomance, less accurate results)
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|Limb|InverseKinematics")
 	float IK_ErrorTollerance = 10.f;
 
@@ -246,7 +255,7 @@ public:
 
 	// How far can physics elements go from their original location
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="PhysicsModel|Limb|AutoGeneration")
-	float PositionDrift = 10.f;
+	float LocationDrift = 10.f;
 
 	// The type of the element's physical attachment to its parent, determines the generation process and the behavior of the Physics Model
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="PhysicsModel|Limb|AutoGeneration")
@@ -270,7 +279,7 @@ protected:
 	// Used as a target if TargetType is set to FirstChildComponent
 	USceneComponent*  TargetComponent;
 	
-	// Used as an ID of the target position stack if TargetType is set to TargetPositionStack
+	// Used as an ID of the target vector stack if TargetType is set to TargetVectorStack
 	int32 TargetStackID;
 
 	// Current segment configuration
@@ -296,7 +305,7 @@ protected:
 // INTERFACE
 public:
 
-	// Returns the ID of the target position stack, used if TargetType is set to TargetPositionStack
+	// Returns the ID of the target vector stack, used if TargetType is set to TargetVectorStack
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|Elements|Limb")
 	int32 GetTargetStackID() { return TargetStackID; }
 
@@ -315,6 +324,10 @@ public:
 	// Reinitializes limb's segments and state
 	UFUNCTION(BlueprintCallable, Category="MPAS|Elements|Limb")
 	void ReinitLimb();
+
+	// Changes the element the limb origin is attached to (by default it is the limb parent)
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Elements|Limb")
+	void OverrideAttachmentParent(UMPAS_RigElement* NewParent);
 
 
 	// Returns the mesh, from which the bone chain will be fetched, !IF SetupType is set to FetchFromMesh!
@@ -354,20 +367,29 @@ protected:
 	// 'static' because they are going to run in a background thread
 
 	// Rotate To Target
-	static void Solve_RotateToTarget();
+	static TArray<FMPAS_LimbSegmentState> Solve_RotateToTarget(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState);
 
 	// FABRIK IK
-	static TArray<FMPAS_LimbSegmentState> Solve_FABRIK_IK(const FVector& InOriginPosition, const FVector& InTargetPosition, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, int32 InMaxIterations, float InTollerance);
+	static TArray<FMPAS_LimbSegmentState> Solve_FABRIK_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, int32 InMaxIterations, float InTollerance);
 	
 	// CCD IK
-	static TArray<FMPAS_LimbSegmentState> Solve_CCD_IK(const FVector& InOriginPosition, const FVector& InTargetPosition, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, int32 InMaxIterations, float InTollerance);
+	static TArray<FMPAS_LimbSegmentState> Solve_CCD_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, int32 InMaxIterations, float InTollerance);
 
 	// PoleFABRIK IK - custom version of FABRIK IK, sligtly slower, but implements support for pole targets, making it the most usable algorithm out of the ones presented here
-	static TArray<FMPAS_LimbSegmentState> Solve_PoleFABRIK_IK(const FVector& InOriginPosition, const FVector& InTargetPosition, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, const TArray<FVector>& InPoleTargets, int32 InMaxIterations, float InTollerance, const FVector& InUpVector);
+	static TArray<FMPAS_LimbSegmentState> Solve_PoleFABRIK_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, const TArray<FVector>& InPoleTargets, int32 InMaxIterations, float InTollerance, const FVector& InUpVector);
+
+	// Turns the limb into a telescopic multi-stage piston for mechanical effects, all segments extend at the same time
+	static TArray<FMPAS_LimbSegmentState> Solve_Piston_Multi(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, float InLimbMaxExtent);
+
+	// Turns the limb into a telescopic multi-stage piston for mechanical effects, segments extend one by one
+	static TArray<FMPAS_LimbSegmentState> Solve_Piston_Sequential(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState);
+
+	//// Gauss-Seidel IK (parer link: https://arxiv.org/pdf/2211.00330)
+	//static TArray<FMPAS_LimbSegmentState> Solve_Gauss_Seidel_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, const TArray<FVector>& InPoleTargets, int32 InMaxIterations, float InTollerance, const FVector& InUpVector);
 
 
 	// Recalculating segment roll rotation
-	static void RecalculateRoll(TArray<FMPAS_LimbSegmentState>& InOutState, float InLimbRoll, const FVector& InOriginPosition, const FVector& InTargetPosition, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FVector>& InPoleTargets, const FVector& InUpVector);
+	static void RecalculateRoll(TArray<FMPAS_LimbSegmentState>& InOutState, float InLimbRoll, const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FVector>& InPoleTargets, const FVector& InUpVector);
 
 	// CALLED BY THE HANDLER
 	// Initializing Rig Element
@@ -385,10 +407,10 @@ protected:
 
 	// PHYSICS MODEL
 
-	// Called when physics model is enabled, applies position and rotation of physics elements to the rig element
-	virtual void ApplyPhysicsModelPositionAndRotation_Implementation(float DeltaTime) override;
+	// Called when physics model is enabled, applies location and rotation of physics elements to the rig element
+	virtual void ApplyPhysicsModelLocationAndRotation_Implementation(float DeltaTime) override;
 
-	// Returns the position, where physics element needs to be once the physics model is enabled
+	// Returns the location, where physics element needs to be once the physics model is enabled
 	virtual FTransform GetDesiredPhysicsElementTransform_Implementation(int32 PhysicsElementID) override;
 
 
@@ -397,6 +419,6 @@ protected:
 	// Finds rotation between two vectors
 	static FRotator GetRotationBetweenVectors(const FVector& InVector_1, const FVector& InVector_2, bool InVectorsNormalized = true);
 
-	// Projects position (location) vector on to a "solution plane" (plane constructed from 3 points: Limb Origin, Limb Target and Pole Target)
-	static FVector ProjectPositionOnToSolutionPlane(const FVector& InPosition, const FVector& InLimbOrigin, const FVector& InLimbTarget, const FVector& InPoleTarget);
+	// Projects location vector on to a "solution plane" (plane constructed from 3 points: Limb Origin, Limb Target and Pole Target)
+	static FVector ProjectLocationOnToSolutionPlane(const FVector& InLocation, const FVector& InLimbOrigin, const FVector& InLimbTarget, const FVector& InPoleTarget);
 };	

@@ -141,6 +141,9 @@ protected:
 	// Links all elements in RigData
 	void LinkRig();
 
+	// Finalizes rig elements' setup
+	void PostLinkSetupRig();
+
 	// Calls OnRigSetupFinished on all Intention Drivers
 	void OnRigSetupComplete();
 
@@ -244,6 +247,22 @@ public:
 	// Whether the selected Intention State Machine is active or not
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|IntentionDriver")
 	bool IsIntentionStateMachineActive(FName InStateMachineName);
+
+
+
+// POSITION DRIVERS
+
+protected:
+
+	// Map of all position drivers, located in the rig, <Driver Name, Pointer>
+	TMap<FName, class UMPAS_PositionDriver*> PositionDrivers;
+
+
+public:
+
+	// Returns a map of all position drivers, located in the rig, <Driver Name, Pointer>
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category= "MPAS|Handler|PositionDriver")
+	const TMap<FName, class UMPAS_PositionDriver*>& GetPositionDrivers() { return PositionDrivers; }
 
 
 

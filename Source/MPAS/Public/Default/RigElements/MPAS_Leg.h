@@ -3,24 +3,30 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "MPAS_RigElement.h"
+#include "MPAS_MotionRigElement.h"
 #include "MPAS_Leg.generated.h"
 
 /**
  * 
  */
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
-class MPAS_API UMPAS_Leg : public UMPAS_RigElement
+class MPAS_API UMPAS_Leg : public UMPAS_MotionRigElement
 {
 	GENERATED_BODY()
 
 protected:
 
-	// The id of the position layer, registered in the parent element. The layer sets the position of the parent element to be at the average positon of all active legs
+	// The id of the location layer, registered in the parent element. The layer sets the location of the parent element to be at the average positon of all active legs
 	int32 LegEffectorLayerID;
 
-	// The id of the position layer, that sets the absolute position of the leg 
-	int32 SelfAbsolutePositionLayerID;
+	// The id of the location layer, that sets the absolute location of the leg 
+	int32 SelfAbsoluteLocationLayerID;
+
+	// ID of a vector stack, where the target location is calculated
+	int32 LegTargetLocationStackID;
+
+	// ID of a vector stack, where effector shift is calculated
+	int32 EffectorShiftStackID;
 
 	// Whether the leg is ready to make a step
 	bool ReadyToStep;
@@ -31,10 +37,10 @@ protected:
 	// Wether the leg has moved in current window (the time frame between CurrentLegGroup value changes)
 	bool HasMovedInCurrentWindow;
 
-	// Leg's target position relative to the the parent element
+	// Leg's target location relative to the the parent element
 	FVector LegTargetOffset;
 
-	// Leg's default position relative to the parent element
+	// Leg's default location relative to the parent element
 	FVector LegRestingPoseOffset;
 
 	// Effector Shift uses interpolation, THIS is the current value of Effector Shift
@@ -45,6 +51,9 @@ protected:
 	FVector StepAnimationStartLocation;
 	FVector StepAnimationTargetLocation;
 	float StepDistance;
+
+	// Parent body pointer
+	class UMPAS_BodySegment* ParentBody;
 
 
 	// Intention Driven Parameter cached values
@@ -57,12 +66,6 @@ protected:
 
 public:
 	UMPAS_Leg();
-	
-
-	// INTENTION DRIVEN - parameter, that determines the location, where the leg is intended to be placed
-	UPROPERTY(BlueprintReadWrite, Category="FootPlacement")
-	FVector LegTargetLocation;
-
 
 	// Foot bone name
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default")
@@ -113,10 +116,6 @@ public:
 	class UCurveFloat* StepHeightScalingCurve = nullptr;
 
 
-	// Effector location shift
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="Default|ParentPlacement")
-	FVector EffectorShift;
-
 	// Effector location shift minimal limitation
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|ParentPlacement")
 	FVector EffectorShift_Min = FVector(-100, -100, -50);
@@ -139,8 +138,8 @@ protected:
 	// Returns the vertical direction, relative to the host
 	FVector GetUpVector() { return FVector(0.f, 0.f, 1.f); };
 
-	// Returns leg's target position
-	FVector GetTargetPosition();
+	// Returns leg's target location
+	FVector GetTargetLocation();
 
 	// Checks whether the leg should make a step
 	bool ShouldStep();
@@ -151,26 +150,40 @@ protected:
 
 public:
 
-	// Casts a trace that finds a suitable foot position, (0, 0, 0) if failed
-	UFUNCTION(BlueprintCallable)
-	FVector FootTrace(const FVector& StepTargetPosition);
+	// Casts a trace that finds a suitable foot location, (0, 0, 0) if failed
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Elements|Leg")
+	FVector FootTrace(const FVector& StepTargetLocation);
 
 	// Returns initial leg's location relative to it's parent element
-	UFUNCTION(BlueprintCallable, BlueprintPure)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Elements|Leg")
 	FVector GetLegTargetOffset() { return LegTargetOffset; }
 
 	// Whether the leg is ready to make a step
-	UFUNCTION(BlueprintCallable, BlueprintPure)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Elements|Leg")
 	bool IsReadyToStep() { return ReadyToStep; }
 
 	// Whether the leg is moving at this moment
-	UFUNCTION(BlueprintCallable, BlueprintPure)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Elements|Leg")
 	bool IsLegMoving() { return IsMoving; }
 
 	// Offset in time from the end of the step animation, when the leg group assumes the step to be finished
 	// Useful for running, where the next group needs to start BEFORE the current one actually finishes
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Elements|Leg")
 	void SetStepFinishTimeOffset(float newOffset);
+
+	
+	// INTENTION DRIVEN
+
+	// Returns ID of a vector stack, where leg target location is calculated
+	// Leg target location is a vector, that determines the location, where the leg is intended to be placed
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Elements|Leg")
+	int32 GetTargetLocationStackID() { return LegTargetLocationStackID; }
+
+	// Returns ID of a vector stack, where effector shift is calculated
+	// Effector shift is the offset, that is added to the leg's location before finding the average of all legs
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Elements|Leg")
+	int32 GetEffectorShiftStackID() { return EffectorShiftStackID; }
+
 
 	// CALLED BY THE HANDLER
 	// Initializing Rig Element
@@ -206,5 +219,5 @@ public:
 
 	// Calls FootTrace for debugging purposes
 	UFUNCTION(BlueprintCallable)
-	FVector DEBUG_FootTrace() { return FootTrace(GetTargetPosition()); }
+	FVector DEBUG_FootTrace() { return FootTrace(GetTargetLocation()); }
 };
