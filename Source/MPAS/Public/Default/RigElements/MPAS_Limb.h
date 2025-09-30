@@ -19,7 +19,11 @@ struct FMPAS_LimbSegmentData
 
 	// Rotational limits for each rotation axis
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FRotator AngularLimits;
+	FRotator AngularLimits_Min;
+
+	// Rotational limits for each rotation axis
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FRotator AngularLimits_Max;
 
 	// Name of the bone, corresponding to this limb segment
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -29,7 +33,7 @@ struct FMPAS_LimbSegmentData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FVector2D PhysicsMeshExtent;
 
-	FMPAS_LimbSegmentData(): Length(0), AngularLimits(FRotator(0, 0, 0)), BoneName(FName()), PhysicsMeshExtent(FVector2D(1, 1)) {} 
+	FMPAS_LimbSegmentData(): Length(0), AngularLimits_Min(FRotator(-360, -360, -360)), AngularLimits_Max(FRotator(360, 360, 360)), BoneName(FName()), PhysicsMeshExtent(FVector2D(1, 1)) {}
 };
 
 /*
@@ -43,13 +47,17 @@ struct FMPAS_AdditionalLimbSegmentData
 
 	// Rotational limits for each rotation axis
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FRotator AngularLimits;
+	FRotator AngularLimits_Min;
+
+	// Rotational limits for each rotation axis
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FRotator AngularLimits_Max;
 
 	// NON-Length plane extent of the physics mesh of this segment
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FVector2D PhysicsMeshExtent;
 
-	FMPAS_AdditionalLimbSegmentData(): AngularLimits(FRotator(360, 360, 360)), PhysicsMeshExtent(FVector2D(1, 1)) {}
+	FMPAS_AdditionalLimbSegmentData(): AngularLimits_Min(FRotator(-360, -360, -360)), AngularLimits_Max(FRotator(360, 360, 360)), PhysicsMeshExtent(FVector2D(1, 1)) {}
 };
 
 
@@ -112,11 +120,18 @@ enum class EMPAS_LimbSolvingAlgorithm : uint8
 	// PoleFABRIK IK - custom version of FABRIK IK, sligtly slower, but implements support for pole targets, making it the most usable algorithm out of the ones presented here
 	PoleFABRIK_IK UMETA(DisplayName="PoleFABRIK IK"),
 
+	// PoleFABRIK IK - custom version of FABRIK IK, sligtly slower, but implements support for pole targets, making it the most usable algorithm out of the ones presented here
+	// Supports angular limits
+	PoleFABRIK_Limited_IK UMETA(DisplayName = "PoleFABRIK Limited IK"),
+
 	// Simply rotate the limb towards the target, efficient for single-segment limbs
 	RotateToTarget UMETA(DisplayName="Rotate To Target"),
 
 	// Implements a light-weight FABRIK IK algorithm
 	FABRIK_IK UMETA(DisplayName="FABRIK IK"),
+
+	// Implements FABRIK algorithm with angular limits
+	FABRIK_Limited_IK UMETA(DisplayName = "FABRIK LIMITED IK"),
 
 	// Implements CCD IK algorithm
 	CCD_IK UMETA(DisplayName="CCD IK"),
@@ -372,11 +387,17 @@ protected:
 	// FABRIK IK
 	static TArray<FMPAS_LimbSegmentState> Solve_FABRIK_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, int32 InMaxIterations, float InTollerance);
 	
+	// FABRIK Limited
+	static TArray<FMPAS_LimbSegmentState> Solve_FABRIK_Limited_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, int32 InMaxIterations, float InTollerance);
+
 	// CCD IK
 	static TArray<FMPAS_LimbSegmentState> Solve_CCD_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, int32 InMaxIterations, float InTollerance);
 
 	// PoleFABRIK IK - custom version of FABRIK IK, sligtly slower, but implements support for pole targets, making it the most usable algorithm out of the ones presented here
 	static TArray<FMPAS_LimbSegmentState> Solve_PoleFABRIK_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, const TArray<FVector>& InPoleTargets, int32 InMaxIterations, float InTollerance, const FVector& InUpVector);
+
+	// PoleFABRIK Limited - custom version of FABRIK IK, sligtly slower, but implements support for pole targets, making it the most usable algorithm out of the ones presented here
+	static TArray<FMPAS_LimbSegmentState> Solve_PoleFABRIK_Limited_IK(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, const TArray<FVector>& InPoleTargets, int32 InMaxIterations, float InTollerance, const FVector& InUpVector);
 
 	// Turns the limb into a telescopic multi-stage piston for mechanical effects, all segments extend at the same time
 	static TArray<FMPAS_LimbSegmentState> Solve_Piston_Multi(const FVector& InOriginLocation, const FVector& InTargetLocation, const TArray<FMPAS_LimbSegmentData>& InSegments, const TArray<FMPAS_LimbSegmentState>& InCurrentState, float InLimbMaxExtent);

@@ -18,6 +18,9 @@ void UMPAS_Crawler::InitRigElement(UMPAS_Handler* InHandler)
 	// Target location stack
 	TargetLocationStackID = RegisterVectorStack("TargetLocationStack");
 	RegisterVectorLayer(TargetLocationStackID, "BasicTargetLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 0, true);
+
+	// Effector shift stack
+	EffectorShiftStackID = RegisterVectorStack("EffectorShiftStack");
 }
 
 // CALLED BY THE HANDLER : Contains the logic that links this element with other elements in the rig
@@ -47,7 +50,7 @@ void UMPAS_Crawler::UpdateRigElement(float DeltaTime)
 	UpdateMovement(DeltaTime);
 
 	// Updating parent location effector value
-	ParentElement->SetVectorSourceValue(0, ParentLocationEffectorLayer, this, GetComponentLocation() + ParentElement->GetComponentRotation().RotateVector(ParentOffset));
+	UpdateParentEffector(DeltaTime);
 }
 
 
@@ -113,7 +116,12 @@ void UMPAS_Crawler::UpdateMovement(float DeltaTime)
 			// Making decisions based on the calculated times
 
 			// Accelerate only if current time to target exeeds breaking time
-			if (CurrentTimeToTarget > CurrentTimeToFrictionBreak) MovementVelocity += MovementDirection * Acceleration * DeltaTime;
+			if (CurrentTimeToTarget > CurrentTimeToFrictionBreak)
+			{
+				float RequiredAcceleration = Acceleration;
+
+				MovementVelocity += MovementDirection * RequiredAcceleration * DeltaTime;
+			}
 		}
 
 		// Breaking
@@ -136,4 +144,18 @@ void UMPAS_Crawler::UpdateMovement(float DeltaTime)
 	// Updating element's location layer value
 	FVector NewLocation = GetVectorSourceValue(0, SelfAbsoluteLocationLayer, this) + MovementVelocity;
 	SetVectorSourceValue(0, SelfAbsoluteLocationLayer, this, NewLocation);
+}
+
+// Updates effector on the parent element's location
+void UMPAS_Crawler::UpdateParentEffector(float DeltaTime)
+{
+	if (!ParentElement) return;
+
+	RealEffectorShift = UKismetMathLibrary::VInterpTo(RealEffectorShift, CalculateVectorStackValue(EffectorShiftStackID), DeltaTime, EffectorShiftInterpolationSpeed);
+
+	FVector LocalizedRealShift = UKismetMathLibrary::Quat_UnrotateVector(ParentElement->GetComponentQuat(), RealEffectorShift);
+	FVector LocalizedLimitedRealShift = ClampVector(LocalizedRealShift, EffectorShift_Min, EffectorShift_Max);
+	FVector LimitedRealShift = ParentElement->GetComponentQuat().RotateVector(LocalizedLimitedRealShift);
+
+	ParentElement->SetVectorSourceValue(0, ParentLocationEffectorLayer, this, GetComponentLocation() + ParentElement->GetComponentRotation().RotateVector(ParentOffset) + LimitedRealShift);
 }

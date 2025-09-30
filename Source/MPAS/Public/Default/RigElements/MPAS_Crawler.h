@@ -24,8 +24,14 @@ protected:
 
 	int32 TargetLocationStackID;
 
+	int32 EffectorShiftStackID;
+
 	// Default offset of the parent element, relative to the crawler
 	FVector ParentOffset;
+
+	// Offset that is added to the parent offse
+	// This value is interpolated, target value is calculated in Effector Shift vector Stack
+	FVector RealEffectorShift;
 	
 	// Current velocity of the crawler (the element is moved according to this velocity)
 	FVector MovementVelocity;
@@ -66,6 +72,19 @@ public:
 	TEnumAsByte<ECollisionChannel> GroundCheckCollisionChannel = ECollisionChannel::ECC_Visibility;
 
 
+	// Effector location shift minimal limitation
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|ParentPlacement")
+	FVector EffectorShift_Min = FVector(-100, -100, -50);
+
+	// Effector location shift maximal limitation
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|ParentPlacement")
+	FVector EffectorShift_Max = FVector(100, 100, 200);
+
+	// How fast the crawler responds to changes in Effector Shift
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|ParentPlacement")
+	float EffectorShiftInterpolationSpeed = 10.f;
+
+
 protected:
 
 	// Checks if there is ground under the crawler
@@ -77,6 +96,9 @@ protected:
 	// Per-frame movement logic of the crawler
 	void UpdateMovement(float DeltaTime);
 
+	// Updates effector on the parent element's location
+	void UpdateParentEffector(float DeltaTime);
+
 
 public:
 
@@ -87,6 +109,11 @@ public:
 	// Returns id of a vector stack, where the target location is calculated
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Elements|Crawler")
 	int32 GetTargetLocationStackID() { return TargetLocationStackID; }
+
+	// Returns ID of a vector stack, where effector shift is calculated
+	// Effector shift is the offset, that is added to the crawler's location before finding the average of all crawlers
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Elements|Leg")
+	int32 GetEffectorShiftStackID() { return EffectorShiftStackID; }
 
 	
 	// CALLED BY THE HANDLER
