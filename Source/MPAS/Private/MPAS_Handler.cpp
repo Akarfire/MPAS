@@ -57,6 +57,13 @@ void UMPAS_Handler::TickComponent(float DeltaTime, ELevelTick TickType, FActorCo
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+	// Autonomously fetching bone transforms, if needed
+	if (UseAutoBoneTransformFetching)
+		AutoFetchBoneTransforms();
+
+	// Synchronizing rig elements with the fetched bone transforms
+	SyncBoneTransforms();
+
 	// Updates rig every tick
 	UpdateRig(DeltaTime);
 
@@ -254,6 +261,47 @@ FTransform UMPAS_Handler::GetSingleBoneTransform(FName InBone)
 		return FTransform();
 
 	return BoneTransforms[InBone];
+}
+
+
+
+// BONE TRANFORM FETCHING AND SYNCHRONIZATION
+
+// Automatically fetches bone transforms from the AutoBoneTransformFetchMesh and stores them into FetchedBoneTransforms
+void UMPAS_Handler::AutoFetchBoneTransforms()
+{
+	if (!AutoBoneTransformFetchMesh || AutoBoneTransformFetchSelection.Num() == 0) return;
+	
+	for (auto& BoneName : AutoBoneTransformFetchSelection)
+	{
+		int32 BoneIndex = AutoBoneTransformFetchMesh->GetBoneIndex(BoneName);
+
+		if (BoneIndex != INDEX_NONE)
+			FetchedBoneTransforms.Add(BoneName, AutoBoneTransformFetchMesh->GetBoneTransform(BoneIndex));
+	}
+}
+
+// Synchronizes rig elements to the most recently fetched bone transforms
+void UMPAS_Handler::SyncBoneTransforms()
+{
+	for (auto& RigElementData : RigData)
+		RigElementData.Value.RigElement->SyncToFetchedBoneTransforms();
+}
+
+
+// Manually fetches bone transforms from the specified mesh
+// NOTE: Autonomous Fetch OVERRIDES cached bone transforms, so it must be disabled in order to use Manual Fetching.
+void UMPAS_Handler::ManualFetchBoneTransforms(USkeletalMeshComponent* InFetchMesh, const TSet<FName>& Selection)
+{
+	if (!InFetchMesh || Selection.Num() == 0) return;
+	
+	for (auto& BoneName : Selection)
+	{
+		int32 BoneIndex = InFetchMesh->GetBoneIndex(BoneName);
+
+		if (BoneIndex != INDEX_NONE)
+			FetchedBoneTransforms.Add(BoneName, InFetchMesh->GetBoneTransform(BoneIndex));
+	}
 }
 
 

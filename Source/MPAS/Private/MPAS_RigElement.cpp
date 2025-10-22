@@ -185,6 +185,11 @@ void UMPAS_RigElement::UpdateRigElement(float DeltaTime)
 	OnUpdateRigElement(DeltaTime);
 }
 
+// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
+void UMPAS_RigElement::SyncToFetchedBoneTransforms()
+{
+}
+
 
 // VECTOR LAYERS
 

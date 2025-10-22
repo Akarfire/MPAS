@@ -280,14 +280,16 @@ public:
 	FVector GetVelocity() { return CachedVelocity; }
 
 
+
 // POSITION DRIVER INTEGRATION
 
+public:
 	// Name of the Vector Stack that will receive location data from a Position Driver (if one is present)
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|PositionDriving")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Advanced|PositionDriving")
 	FString PositionDriverIntegration_LocationStackName = "DefaultLocation";
 
 	// Name of the Rotation Stack that will receive rotation data from a Position Driver (if one is present)
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|PositionDriving")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Advanced|PositionDriving")
 	FString PositionDriverIntegration_RotationStackName = "DefaultRotation";
 
 
@@ -592,28 +594,37 @@ public:
 	// CALLED BY THE HANDLER : Links element to it's physics model equivalent
 	virtual void InitPhysicsModel(const TArray<UMPAS_PhysicsModelElement*>& InPhysicsElements);
 
-	// CALLED BY THE HANDLER :  Updating Rig Element every tick
+	// CALLED BY THE HANDLER : Updating Rig Element every tick
 	virtual void UpdateRigElement(float DeltaTime);
 
-	// CALLED BY THE HANDLER :  Called when the rig is initialized by the handler - to be overriden in Blueprints
+	// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
+	virtual void SyncToFetchedBoneTransforms();
+
+
+	// CALLED BY THE HANDLER : Called when the rig is initialized by the handler - to be overriden in Blueprints
 	UFUNCTION(BlueprintNativeEvent, Category="MPAS|RigElement|Overrides|Basic")
 	void OnInitRigElement(class UMPAS_Handler* InHandler);
 	virtual void OnInitRigElement_Implementation(class UMPAS_Handler* InHandler) {};
 
-	// CALLED BY THE HANDLER :  Contains the logic that links this element with other elements in the rig - to be overriden in Blueprints
+	// CALLED BY THE HANDLER : Contains the logic that links this element with other elements in the rig - to be overriden in Blueprints
 	UFUNCTION(BlueprintNativeEvent, Category="MPAS|RigElement|Overrides|Basic")
 	void OnLinkRigElement(class UMPAS_Handler* InHandler);
 	virtual void OnLinkRigElement_Implementation(class UMPAS_Handler* InHandler) {};
 
-	// CALLED BY THE HANDLER :  Links element to it's physics model equivalent - to be overriden in Blueprints
+	// CALLED BY THE HANDLER : Links element to it's physics model equivalent - to be overriden in Blueprints
 	UFUNCTION(BlueprintNativeEvent, Category="MPAS|RigElement|Overrides|Basic")
 	void OnInitPhysicsModel();
 	virtual void OnInitPhysicsModel_Implementation() {};
 
-	// CALLED BY THE HANDLER :  Called every tick the element gets updated by the handler - to be overriden in Blueprints
+	// CALLED BY THE HANDLER : Called every tick the element gets updated by the handler - to be overriden in Blueprints
 	UFUNCTION(BlueprintNativeEvent, Category="MPAS|RigElement|Overrides|Basic")
 	void OnUpdateRigElement(float DeltaTime);
 	virtual void OnUpdateRigElement_Implementation(float DeltaTime) {};
+
+	// CALLED BY THE HANDLER : CSynchronizes Rig Element to the most recently fetched bone transforms - to be overriden in Blueprints
+	UFUNCTION(BlueprintNativeEvent, Category = "MPAS|RigElement|Overrides|Basic")
+	void OnSyncToFetchedBoneTransforms();
+	virtual void OnSyncToFetchedBoneTransforms_Implementation() {};
 
 
 

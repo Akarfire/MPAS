@@ -212,6 +212,69 @@ public:
 
 
 
+// BONE TRANFORM FETCHING AND SYNCHRONIZATION
+
+protected:
+
+	// Buffer, containing bone transforms that were fetched from the BoneTransformFetchMesh 
+	// (or any other mesh, specified during manual fetch)
+	TMap<FName, FTransform> FetchedBoneTransforms;
+
+	// Skeletal mesh component, from which autonomous bone transform fetching is performed
+	USkeletalMeshComponent* AutoBoneTransformFetchMesh;
+
+	// List of bones, whose transform shall be fetched in the autonomous bone fetch process
+	TSet<FName> AutoBoneTransformFetchSelection;
+
+
+	// Automatically fetches bone transforms from the AutoBoneTransformFetchMesh and stores them into FetchedBoneTransforms
+	void AutoFetchBoneTransforms();
+
+	// Synchronizes rig elements to the most recently fetched bone transforms
+	void SyncBoneTransforms();
+
+public:
+
+	// Whether the bone transforms should be fetched automatically
+	// Fetched bone transforms are then used to update (sync) rig elements positions (Hybrid Animation Methods)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default|BoneTransformFetching")
+	bool UseAutoBoneTransformFetching = true;
+
+
+	// Specifies the skeletal mesh, from which bone transforms shall be fetched during autonomous bone fetch process
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|BoneTransformFetching")
+	void SetAutoBoneTransformFetchMesh(USkeletalMeshComponent* InMesh) { AutoBoneTransformFetchMesh = InMesh; }
+
+	// Modifies the selection of bones, whose transform needs to be fetched during autonomous bone fetch process
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|BoneTransformFetching")
+	void AddAutoFetchBone(const FName& InBoneName) { AutoBoneTransformFetchSelection.Add(InBoneName); }
+
+	// Modifies the selection of bones, whose transform needs to be fetched during autonomous bone fetch process
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|BoneTransformFetching")
+	void RemoveAutoFetchBone(const FName& InBoneName) { AutoBoneTransformFetchSelection.Remove(InBoneName); }
+
+
+	// Manually fetches bone transforms from the specified mesh
+	// NOTE: Autonomous Fetch OVERRIDES cached bone transforms, so it must be disabled in order to use Manual Fetching.
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|BoneTransformFetching")
+	void ManualFetchBoneTransforms(USkeletalMeshComponent* InFetchMesh, const TSet<FName>& Selection);
+
+
+	// Buffer, containing bone transforms that were fetched from the BoneTransformFetchMesh 
+	// (or any other mesh, specified during manual fetch)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|BoneTransformFetching")
+	const TMap<FName, FTransform>& GetCachedFetchedBoneTransforms() { return FetchedBoneTransforms; }
+
+	// Skeletal mesh component, from which autonomous bone transform fetching is performed
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|BoneTransformFetching")
+	USkeletalMeshComponent* GetAutoBoneTransformFetchMesh() { return AutoBoneTransformFetchMesh; }
+
+	// List of bones, whose transform shall be fetched in the autonomous bone fetch process
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|BoneTransformFetching")
+	const TSet<FName>& GetAutoBoneTransformFetchSelection() { return AutoBoneTransformFetchSelection; }
+
+
+
 // INTENTION DRIVER
 
 protected:
