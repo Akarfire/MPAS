@@ -377,6 +377,9 @@ protected:
 	// Handles interpolation of the current state to the target state
 	void InterpolateLimb(float DeltaTime);
 
+	// Calculates resulting location of the pole target in world space
+	FVector CalculatePoleTargetLocation(const FMPAS_LimbPoleTarget& InPoleTargetSettings);
+
 	
 	// Algorithms
 	// 'static' because they are going to run in a background thread
@@ -442,4 +445,12 @@ protected:
 
 	// Projects location vector on to a "solution plane" (plane constructed from 3 points: Limb Origin, Limb Target and Pole Target)
 	static FVector ProjectLocationOnToSolutionPlane(const FVector& InLocation, const FVector& InLimbOrigin, const FVector& InLimbTarget, const FVector& InPoleTarget);
+
+
+// DEBUGGING
+public:
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Elements|Limb|Debug")
+	FVector DEBUG_GetPoleTargetLocation(int32 InPoleTargetID) { return CalculatePoleTargetLocation(PoleTargets[InPoleTargetID]); }
+
 };	

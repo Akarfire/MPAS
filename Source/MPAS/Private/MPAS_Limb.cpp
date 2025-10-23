@@ -232,25 +232,7 @@ void UMPAS_Limb::SolveLimb()
         {
             const FMPAS_LimbSegmentData& Seg = Segments[i];
             if (PoleTargets.Contains(i))
-            {
-                const FMPAS_LimbPoleTarget& PoleTargetSettings = PoleTargets[i];
-
-                // Auto calculation mode
-                if (PoleTargetSettings.LocationMode == EMPAS_LimbPoleTargetLocationMode::AutoCalculation)
-                {
-                    FVector ForwardVector = (TargetLocation - OriginLocation).GetSafeNormal();
-                    FVector UpVector = GetUpVector();
-                    FVector RightVector = UKismetMathLibrary::Cross_VectorVector(ForwardVector, UpVector).GetSafeNormal();
-
-                    LastCalculatedPoleTarget = OriginLocation + ( ForwardVector * PoleTargetSettings.AUTO_PoleTargetOffset.X + RightVector* PoleTargetSettings.AUTO_PoleTargetOffset.Y + UpVector* PoleTargetSettings.AUTO_PoleTargetOffset.Z );
-                }
-
-                // Location stack mode
-                else if (PoleTargetSettings.LocationMode == EMPAS_LimbPoleTargetLocationMode::PoleTargetLocationStack)
-                {
-                    LastCalculatedPoleTarget = CalculateVectorStackValue(PoleTargetSettings.STACK_VectorStackID);
-                }
-            }
+                LastCalculatedPoleTarget = CalculatePoleTargetLocation(PoleTargets[i]);
             
             L_PoleTargets.Add(LastCalculatedPoleTarget);
             //L_PoleTargets.Add(FVector(0, 0, 0));
@@ -377,6 +359,30 @@ void UMPAS_Limb::InterpolateLimb(float DeltaTime)
     // Writing states to send data to the handler
     for (int32 i = 0; i < Segments.Num(); i++)
         WriteSegmentState(i, CurrentState[i]);
+}
+
+// Calculates resulting location of the pole target in world space
+FVector UMPAS_Limb::CalculatePoleTargetLocation(const FMPAS_LimbPoleTarget& InPoleTargetSettings)
+{
+    // Auto calculation mode
+    if (InPoleTargetSettings.LocationMode == EMPAS_LimbPoleTargetLocationMode::AutoCalculation)
+    {
+        FVector ForwardVector = (GetLimbTarget() - GetComponentLocation()).GetSafeNormal();
+        FVector UpVector = GetUpVector();
+        FVector RightVector = UKismetMathLibrary::Cross_VectorVector(ForwardVector, UpVector).GetSafeNormal();
+
+        return GetComponentLocation() + (ForwardVector * InPoleTargetSettings.AUTO_PoleTargetOffset.X 
+                        + RightVector * InPoleTargetSettings.AUTO_PoleTargetOffset.Y
+                        + UpVector * InPoleTargetSettings.AUTO_PoleTargetOffset.Z);
+    }
+
+    // Location stack mode
+    if (InPoleTargetSettings.LocationMode == EMPAS_LimbPoleTargetLocationMode::PoleTargetLocationStack)
+    {
+        return CalculateVectorStackValue(InPoleTargetSettings.STACK_VectorStackID);
+    }
+
+    return FVector::Zero();
 }
 
 
