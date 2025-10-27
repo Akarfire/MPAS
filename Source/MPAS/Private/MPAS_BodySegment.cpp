@@ -37,6 +37,9 @@ void UMPAS_BodySegment::InitRigElement(class UMPAS_Handler* InHandler)
 
     SetRotationSourceValue(DesiredRotationStackID, 1, this, GetComponentRotation() - InHandler->GetCore()->GetComponentRotation());
 
+    // Bone Transform Sync
+    BoneTransformSync_LocationLayerID = RegisterVectorLayer(0, "BoneTransformSync", EMPAS_LayerBlendingMode::Add, EMPAS_LayerCombinationMode::Add, 1.f, BoneTransformSyncingLayerPriority);
+    BoneTransformSync_RotationLayerID = RegisterRotationLayer(0, "BoneTransformSync", EMPAS_LayerBlendingMode::Add, 1.f, BoneTransformSyncingLayerPriority);
 }
 
 // CALLED BY THE HANDLER :  Updating Rig Element every tick
@@ -45,7 +48,13 @@ void UMPAS_BodySegment::UpdateRigElement(float DeltaTime)
     Super::UpdateRigElement(DeltaTime);
 
     if (BoneName != FName())
-        Handler->SetBoneTransform(BoneName, GetComponentTransform());
+    {
+        FTransform BoneTransform = GetComponentTransform();
+
+        BoneTransform.SetRotation(BoneTransform.GetRotation() * AdditionalBoneRotation.Quaternion());
+
+        Handler->SetBoneTransform(BoneName, BoneTransform);
+    }
 
     if (UseCoreRotation)
     {
@@ -85,4 +94,18 @@ void UMPAS_BodySegment::UpdateRigElement(float DeltaTime)
         // Rotation enforcement
         SetWorldRotation(UKismetMathLibrary::RLerp(GetComponentRotation(), CachedDesiredRotation, DesiredRotationEnforcement, true));
     }
+}
+
+// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
+void UMPAS_BodySegment::SyncToFetchedBoneTransforms()
+{
+    const FTransform* FetchedBoneTransform = GetHandler()->GetCachedFetchedBoneTransforms().Find(BoneName);
+	if (FetchedBoneTransform)
+	{
+		FVector DeltaLocation = (*FetchedBoneTransform).GetLocation() - GetComponentLocation();
+		FRotator DeltaRotator = UKismetMathLibrary::NormalizedDeltaRotator(((*FetchedBoneTransform).GetRotation() * AdditionalBoneRotation.Quaternion().Inverse()).Rotator(), GetComponentRotation());
+
+		SetVectorSourceValue(0, BoneTransformSync_LocationLayerID, this, DeltaLocation);
+		SetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this, DeltaRotator);
+	}
 }
