@@ -64,6 +64,11 @@ protected:
 	float SpeedMultiplier = 1.f;
 
 
+	// Bone Transform Syncing
+	int32 BoneTransformSync_LocationLayerID;
+	int32 BoneTransformSync_RotationLayerID;
+
+
 public:
 	UMPAS_Leg();
 
@@ -133,6 +138,17 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|Stability")
 	FVector InactiveOffset = FVector();
 
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Advanced")
+	int32 EffectorLayerPriority = 1;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Advanced")
+	int32 BoneTransformSyncingLayerPriority = 1;
+
+	//UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Advanced")
+	//float BoneTransformSyncingDistanceSquaredThreshold = 100.f;
+
+
 protected:
 	
 	// Returns the vertical direction, relative to the host
@@ -194,6 +210,9 @@ public:
 
 	// Updating Rig Element every tick
 	virtual void UpdateRigElement(float DeltaTime) override;
+
+	//// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
+	//virtual void SyncToFetchedBoneTransforms() override;
 
 
 	// CALLED BY THE HANDLER : NOTIFICATION Called when a subscribed-to parameter is changed

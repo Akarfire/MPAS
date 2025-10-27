@@ -60,6 +60,10 @@ void UMPAS_Leg::InitRigElement(UMPAS_Handler* InHandler)
 	// Effector shift stack
 	EffectorShiftStackID = RegisterVectorStack("EffectorShift");
 
+	// Bone Transform Sync
+	BoneTransformSync_LocationLayerID = RegisterVectorLayer(0, "BoneTransformSync", EMPAS_LayerBlendingMode::Add, EMPAS_LayerCombinationMode::Add, 1.f, BoneTransformSyncingLayerPriority);
+	BoneTransformSync_RotationLayerID = RegisterRotationLayer(0, "BoneTransformSync", EMPAS_LayerBlendingMode::Add, 1.f, BoneTransformSyncingLayerPriority);
+
 
 	// Intention Driven Parameters
 	if (!InHandler->IsFloatParameterValid("INTENTION_LEGS_StepLengthMultiplier"))
@@ -93,7 +97,7 @@ void UMPAS_Leg::LinkRigElement(class UMPAS_Handler* InHandler)
 	LegTargetOffset = GetComponentLocation() - ParentElement->GetComponentLocation();
 
 	// Registers the effector layer
-	LegEffectorLayerID = ParentElement->RegisterVectorLayer(0, "LegsLocationEffector", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Average);
+	LegEffectorLayerID = ParentElement->RegisterVectorLayer(0, "LegsLocationEffector", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Average, 1.f, EffectorLayerPriority);
 
 	// Get resting pose offset
 	LegRestingPoseOffset = GetComponentLocation() - ParentElement->GetComponentLocation();
@@ -123,8 +127,8 @@ void UMPAS_Leg::UpdateRigElement(float DeltaTime)
 
 	if (!ParentElement) return;
 
-	if (FootBone != FName())
-		Handler->SetBoneTransform(FootBone, GetComponentTransform());
+	/*if (FootBone != FName())
+		Handler->SetBoneTransform(FootBone, GetComponentTransform());*/
 
 	if (!GetPhysicsModelEnabled())
 	{
@@ -177,6 +181,20 @@ void UMPAS_Leg::UpdateRigElement(float DeltaTime)
 		}
 	}
 }
+
+// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
+//void UMPAS_Leg::SyncToFetchedBoneTransforms()
+//{
+//	const FTransform* FetchedBoneTransform = GetHandler()->GetCachedFetchedBoneTransforms().Find(FootBone);
+//	if (FetchedBoneTransform)
+//	{
+//		//FVector DeltaLocation = (*FetchedBoneTransform).GetLocation() - GetComponentLocation();
+//		//FRotator DeltaRotator = UKismetMathLibrary::NormalizedDeltaRotator((*FetchedBoneTransform).GetRotation().Rotator(), GetComponentRotation());
+//
+//		if (((*FetchedBoneTransform).GetLocation() - GetComponentLocation()).SizeSquared() > BoneTransformSyncingDistanceSquaredThreshold)
+//			SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, (*FetchedBoneTransform).GetLocation());
+//	}
+//}
 
 
 // Returns leg's target location
