@@ -909,6 +909,20 @@ void UMPAS_Limb::UpdateRigElement(float DeltaTime)
     }
 }
 
+// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
+void UMPAS_Limb::SyncToFetchedBoneTransforms()
+{
+    for (int32 i = 0; i < Segments.Num(); i++)
+    {
+        auto BoneTransform = GetHandler()->GetCachedFetchedBoneTransforms().Find(Segments[i].BoneName);
+        if (BoneTransform)
+        {
+            CurrentState[i].Location = (*BoneTransform).GetLocation();
+            CurrentState[i].Rotation = (*BoneTransform).GetRotation().Rotator();
+        }
+    }
+}
+
 
 // PHYSICS MODEL
 
