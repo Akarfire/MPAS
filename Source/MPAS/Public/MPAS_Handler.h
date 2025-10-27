@@ -240,10 +240,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default|BoneTransformFetching")
 	bool UseAutoBoneTransformFetching = true;
 
+	// Prevents mesh's default pose from being fetched on the first handler update
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default|BoneTransformFetching")
+	bool SkipAutoBoneTransformFetchForTheFirstUpdate = true;
+
 
 	// Specifies the skeletal mesh, from which bone transforms shall be fetched during autonomous bone fetch process
 	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|BoneTransformFetching")
-	void SetAutoBoneTransformFetchMesh(USkeletalMeshComponent* InMesh) { AutoBoneTransformFetchMesh = InMesh; }
+	void SetAutoBoneTransformFetchMesh(USkeletalMeshComponent* InMesh, bool AddAllBonesToFetchSelection = true);
 
 	// Modifies the selection of bones, whose transform needs to be fetched during autonomous bone fetch process
 	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|BoneTransformFetching")

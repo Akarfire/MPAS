@@ -270,6 +270,12 @@ FTransform UMPAS_Handler::GetSingleBoneTransform(FName InBone)
 // Automatically fetches bone transforms from the AutoBoneTransformFetchMesh and stores them into FetchedBoneTransforms
 void UMPAS_Handler::AutoFetchBoneTransforms()
 {
+	if (SkipAutoBoneTransformFetchForTheFirstUpdate)
+	{
+		SkipAutoBoneTransformFetchForTheFirstUpdate = false;
+		return;
+	}
+
 	if (!AutoBoneTransformFetchMesh || AutoBoneTransformFetchSelection.Num() == 0) return;
 	
 	for (auto& BoneName : AutoBoneTransformFetchSelection)
@@ -288,6 +294,20 @@ void UMPAS_Handler::SyncBoneTransforms()
 		RigElementData.Value.RigElement->SyncToFetchedBoneTransforms();
 }
 
+// Specifies the skeletal mesh, from which bone transforms shall be fetched during autonomous bone fetch process
+void UMPAS_Handler::SetAutoBoneTransformFetchMesh(USkeletalMeshComponent* InMesh, bool AddAllBonesToFetchSelection)
+{
+	AutoBoneTransformFetchMesh = InMesh;
+
+	if (AddAllBonesToFetchSelection)
+	{
+		TArray<FName> BoneNames;
+		AutoBoneTransformFetchMesh->GetBoneNames(BoneNames);
+
+		for (auto& Bone : BoneNames)
+			AddAutoFetchBone(Bone);
+	}
+}
 
 // Manually fetches bone transforms from the specified mesh
 // NOTE: Autonomous Fetch OVERRIDES cached bone transforms, so it must be disabled in order to use Manual Fetching.
