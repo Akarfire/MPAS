@@ -211,8 +211,8 @@ public:
 	// Updating Rig Element every tick
 	virtual void UpdateRigElement(float DeltaTime) override;
 
-	//// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
-	//virtual void SyncToFetchedBoneTransforms() override;
+	// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
+	virtual void SyncToFetchedBoneTransforms() override;
 
 
 	// CALLED BY THE HANDLER : NOTIFICATION Called when a subscribed-to parameter is changed

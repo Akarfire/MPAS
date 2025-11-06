@@ -13,6 +13,8 @@ UMPAS_Leg::UMPAS_Leg()
 {
 	//PositioningMode = EMPAS_ElementPositionMode::Independent;
 	PhysicsElementsConfiguration.Add(FMPAS_PhysicsElementConfiguration());
+
+	AlwaysSyncBoneTransform = false;
 }
 
 
@@ -183,18 +185,20 @@ void UMPAS_Leg::UpdateRigElement(float DeltaTime)
 }
 
 // CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
-//void UMPAS_Leg::SyncToFetchedBoneTransforms()
-//{
-//	const FTransform* FetchedBoneTransform = GetHandler()->GetCachedFetchedBoneTransforms().Find(FootBone);
-//	if (FetchedBoneTransform)
-//	{
-//		//FVector DeltaLocation = (*FetchedBoneTransform).GetLocation() - GetComponentLocation();
-//		//FRotator DeltaRotator = UKismetMathLibrary::NormalizedDeltaRotator((*FetchedBoneTransform).GetRotation().Rotator(), GetComponentRotation());
-//
-//		if (((*FetchedBoneTransform).GetLocation() - GetComponentLocation()).SizeSquared() > BoneTransformSyncingDistanceSquaredThreshold)
-//			SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, (*FetchedBoneTransform).GetLocation());
-//	}
-//}
+void UMPAS_Leg::SyncToFetchedBoneTransforms()
+{
+	const FTransform* FetchedBoneTransform = GetHandler()->GetCachedFetchedBoneTransforms().Find(FootBone);
+	if (FetchedBoneTransform)
+	{
+		FVector NewLocation = (*FetchedBoneTransform).GetLocation();
+
+		FVector FootTraceLocation = FootTrace(NewLocation);
+		if (FootTraceLocation != FVector::Zero())
+			NewLocation = FootTraceLocation;
+
+		SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, NewLocation);
+	}
+}
 
 
 // Returns leg's target location
