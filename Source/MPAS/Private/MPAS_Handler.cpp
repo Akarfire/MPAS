@@ -291,7 +291,10 @@ void UMPAS_Handler::AutoFetchBoneTransforms()
 void UMPAS_Handler::SyncBoneTransforms()
 {
 	for (auto& RigElementData : RigData)
-		RigElementData.Value.RigElement->SyncToFetchedBoneTransforms();
+		if (RigElementData.Value.RigElement->AlwaysSyncBoneTransform || ForceSyncBoneTransforms)
+			RigElementData.Value.RigElement->SyncToFetchedBoneTransforms();
+
+	ForceSyncBoneTransforms = false;
 }
 
 // Specifies the skeletal mesh, from which bone transforms shall be fetched during autonomous bone fetch process

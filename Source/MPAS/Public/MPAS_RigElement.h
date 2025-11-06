@@ -252,6 +252,11 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Orientation")
 	float RotationInterpolationSpeed = 0.f;
 
+	// Whether this element should always be synchronized with fetched bone transforms
+	// If set to false, bone transform sync will only happen during Force Synchronization
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	bool AlwaysSyncBoneTransform = true;
+
 
 protected:
 	// Called when the game starts

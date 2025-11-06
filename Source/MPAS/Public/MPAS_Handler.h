@@ -226,6 +226,8 @@ protected:
 	// List of bones, whose transform shall be fetched in the autonomous bone fetch process
 	TSet<FName> AutoBoneTransformFetchSelection;
 
+	// Whether next update's synchronization should be a forced one (it will called on all elements)
+	bool ForceSyncBoneTransforms = false;
 
 	// Automatically fetches bone transforms from the AutoBoneTransformFetchMesh and stores them into FetchedBoneTransforms
 	void AutoFetchBoneTransforms();
@@ -262,6 +264,11 @@ public:
 	// NOTE: Autonomous Fetch OVERRIDES cached bone transforms, so it must be disabled in order to use Manual Fetching.
 	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|BoneTransformFetching")
 	void ManualFetchBoneTransforms(USkeletalMeshComponent* InFetchMesh, const TSet<FName>& Selection);
+
+
+	// Performs a Forced Synchronization on the next update (synchronization will be applied to all elements)
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|BoneTransformFetching")
+	void ForceSynchronizeBoneTransforms() { ForceSyncBoneTransforms = true; }
 
 
 	// Buffer, containing bone transforms that were fetched from the BoneTransformFetchMesh 
