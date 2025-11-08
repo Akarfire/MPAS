@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
-#include "MPAS_PhysicsModel.h"
 #include "MPAS_RigElement.generated.h"
 
 
@@ -174,21 +173,6 @@ enum class EMPAS_ElementPositionMode : uint8
 };
 
 
-// STABILITY STATUS
-UENUM(BlueprintType)
-enum class EMPAS_StabilityStatus : uint8
-{
-	// Fully stable element, attached to another stable element
-	Stable UMETA(DisplayName="Stable"),
-
-	// A stable element, attached to an unstable/semi-stable element 
-	SemiStable UMETA(DisplayName="Semi-Stable"),
-
-	// An unstable element
-	Unstable UMETA(DisplayName="Unstable")
-};
-
-
 // RIG ELEMENT
 UCLASS(Blueprintable, ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class MPAS_API UMPAS_RigElement : public USceneComponent
@@ -205,9 +189,6 @@ protected:
 	// Initial location and rotation of the element relative to it's parent
 	FTransform InitialSelfTransform;
 
-	// If this flag is set, then physics model constaint will be reactivated next frame
-	bool ReactivatePhysicsModelConstraintNextFrame;
-
 	// Cached parameter values
 	float LocationInterpolationMultiplier = 1.f;
 	float RotationInterpolationMultiplier = 1.f;
@@ -223,13 +204,13 @@ public:
 	// Sets default values for this component's properties
 	UMPAS_RigElement();
 
-	// Whether the element is currently active
+	// Whether the element is currently enabled
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Default")
-	bool Active = true;
+	bool Enabled = true;
 
-	// Whether the element should be active on initialization
+	// Whether the element should be enabled on initialization
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default")
-	bool DefaultActive = true;
+	bool DefaultEnabled = true;
 
 
 	// Name of the element in the rig
@@ -274,11 +255,19 @@ public:
 
 	// Makes the element Active / InActive
 	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement")
-	void SetRigElementActive(bool NewActive) { Active = NewActive; }
+	void SetRigElementEnabled(bool NewEnabled) { Enabled = NewEnabled; }
 
 	// Whether the element is active or not
 	UFUNCTION(BlueprintPure, BlueprintCallable, Category="MPAS|RigElement")
-	bool GetRigElementActive() { return Active; }
+	bool GetRigElementEnabled() { return Enabled; }
+
+
+	// Whether this element is currently active (Implementation can depend on the specific element, override this method if you need custom funcitonality)
+	// Default behavior: return GetRigElementEnabled();
+	UFUNCTION(BlueprintPure, BlueprintCallable, BlueprintNativeEvent, Category = "MPAS|RigElement")
+	bool GetRigElementActive();
+	virtual bool GetRigElementActive_Implementation() { return Enabled; }
+
 
 	// Returns the velocity of the rig element
 	UFUNCTION(BlueprintPure, BlueprintCallable, Category="MPAS|RigElement")
@@ -454,136 +443,6 @@ public:
 
 
 
-// PHYSICS MODEL
-protected:
-
-	// Whether the physics model is enabled for this element
-	bool PhysicsModelEnabled;
-
-	// An array of pointers to all associated physics model elements
-	UPROPERTY()
-	TArray<UMPAS_PhysicsModelElement*> PhysicsElements;
-
-public:
-
-	// An array of all configurations of physics model elements, that will be created for this rig element
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PhysicsModel")
-	TArray<FMPAS_PhysicsElementConfiguration> PhysicsElementsConfiguration;
-
-public:
-	
-	// Enables/Disables physics model usage for this element
-	UFUNCTION(BlueprintCallable, Category = "MPAS|RigElement|PhysicsModel")
-	void SetPhysicsModelEnabled(bool InEnabled);
-
-	// Wheter the physics model is enabled for this element
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|PhysicsModel")
-	bool GetPhysicsModelEnabled() { return PhysicsModelEnabled; }
-
-	// Returns an array of pointers to the all associated physics model elements
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|PhysicsModel")
-	const TArray<UMPAS_PhysicsModelElement*>& GetPhysicsElements() { return PhysicsElements; }
-
-	// Returns a pointer to the specified associated physics model element
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|PhysicsModel")
-	UMPAS_PhysicsModelElement* GetPhysicsElement(int32 Index) { return PhysicsElements[Index]; }
-
-	// Called when physics model is enabled for this element
-	UFUNCTION(BlueprintNativeEvent, Category="MPAS|RigElement|PhysicsModel")
-	void OnPhysicsModelEnabled();
-	virtual void OnPhysicsModelEnabled_Implementation() {}
-
-	// Called when physics model is disabled for this element
-	UFUNCTION(BlueprintNativeEvent, Category="MPAS|RigElement|PhysicsModel")
-	void OnPhysicsModelDisabled();
-	virtual void OnPhysicsModelDisabled_Implementation() {}
-
-	// Called when physics model is enabled, applies location and rotation of physics elements to the rig element
-	UFUNCTION(BlueprintNativeEvent, Category="MPAS|RigElement|PhysicsModel")
-	void ApplyPhysicsModelLocationAndRotation(float DeltaTime);
-	virtual void ApplyPhysicsModelLocationAndRotation_Implementation(float DeltaTime);
-
-	// Returns the location, where physics element needs to be once the physics model is enabled
-	UFUNCTION(BlueprintNativeEvent, Category="MPAS|RigElement|PhysicsModel")
-	FTransform GetDesiredPhysicsElementTransform(int32 PhysicsElementID);
-	virtual FTransform GetDesiredPhysicsElementTransform_Implementation(int32 PhysicsElementID) { return GetComponentTransform(); }
-
-	// Returns the velocity that needs to be applied to the physics element once the physics model is enabled
-	UFUNCTION(BlueprintNativeEvent, Category="MPAS|RigElement|PhysicsModel")
-	FVector GetDesiredPhysicsElementVelocity(int32 PhysicsElementID);
-	virtual FVector GetDesiredPhysicsElementVelocity_Implementation(int32 PhysicsElementID) { return GetVelocity(); }
-
-
-// STABILITY
-
-/*
- * Stability is a float value, that determines how stable the component is. If the value goes below a certain threshold, then the element and all of it's children become unstable
- * The value ranges from 0 to 1 for each element
- * The stability of the element can depend on other elements, including it's children and parents
- * Note, that if the parent goes unstable, the child will also go unstable, though it does not gurantee that child's stability value is below it's threshold
- */
-
-protected:
-	
-	/*
-	 * A map of rig elements, that have an effect on this element's stability
-	 * The resulting element's stability value is the average of this map
-	 */
-	TMap<UMPAS_RigElement*, float> StabilityEffectors;
-
-	// The latest stability value - cached average value of the StabilityEffectors map
-	float CachedStability = 1.f;
-
-	// Current stability status
-	EMPAS_StabilityStatus StabilityStatus;
-
-public:
-
-	// A threshold for element's Stability value, going under which, the element becomes unstable
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Stability")
-	float StabilityThreshold = 0.5f;
-
-protected:
-
-	// Recalculates stability and calls stability events
-	void UpdateStability();
-
-public:
-
-	/*
-	* Returns the element's Stability value
-	* Stability is a float value, that determines how stable the component is. If the value goes below a certain threshold, then the element and all of it's children become unstable
-	* The value ranges from 0 to 1 for each element
-	* The stability of the element can depend on other elements, including it's children and parents
-	* Note, that if the parent goes unstable, the child will also go unstable, though it does not gurantee that child's stability value is below it's threshold
-	*/
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|Stability")
-	float GetStability() { return CachedStability; }
-
-	// Whether the element is stable or not
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|Stability")
-	bool GetIsStable();
-
-	// Returns current stability status
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|Stability")
-	EMPAS_StabilityStatus GetStabilityStatus() { return StabilityStatus; }
-
-	// Sets a stability effector value, the average of all effector values determines the stability of the element
-	UFUNCTION(BlueprintCallable, Category = "MPAS|RigElement|Stability")
-	void SetStabilityEffectorValue(UMPAS_RigElement* InEffector, float InStability);
-
-	// Removes an effector from stability effectors (if it is a valid effector)
-	UFUNCTION(BlueprintCallable, Category = "MPAS|RigElement|Stability")
-	void RemoveStabilityEffector(UMPAS_RigElement* InEffector);
-
-
-	// Called when the element's stability status is changed (do not forget to call SUPER version)
-	UFUNCTION(BlueprintNativeEvent, Category="MPAS|RigElement|Stability")
-	void OnStabilityStatusChanged(EMPAS_StabilityStatus NewStabilityStatus);
-	virtual void OnStabilityStatusChanged_Implementation(EMPAS_StabilityStatus NewStabilityStatus);
-
-
-
 // CALLED BY THE HANDLER
 public:
 
@@ -595,9 +454,6 @@ public:
 
 	// CALLED BY THE HANDLER : Called after the linking phase has completed (no more side changes will be applied to the element)
 	virtual void PostLinkSetupRigElement(class UMPAS_Handler* InHandler);
-
-	// CALLED BY THE HANDLER : Links element to it's physics model equivalent
-	virtual void InitPhysicsModel(const TArray<UMPAS_PhysicsModelElement*>& InPhysicsElements);
 
 	// CALLED BY THE HANDLER : Updating Rig Element every tick
 	virtual void UpdateRigElement(float DeltaTime);
@@ -615,11 +471,6 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category="MPAS|RigElement|Overrides|Basic")
 	void OnLinkRigElement(class UMPAS_Handler* InHandler);
 	virtual void OnLinkRigElement_Implementation(class UMPAS_Handler* InHandler) {};
-
-	// CALLED BY THE HANDLER : Links element to it's physics model equivalent - to be overriden in Blueprints
-	UFUNCTION(BlueprintNativeEvent, Category="MPAS|RigElement|Overrides|Basic")
-	void OnInitPhysicsModel();
-	virtual void OnInitPhysicsModel_Implementation() {};
 
 	// CALLED BY THE HANDLER : Called every tick the element gets updated by the handler - to be overriden in Blueprints
 	UFUNCTION(BlueprintNativeEvent, Category="MPAS|RigElement|Overrides|Basic")

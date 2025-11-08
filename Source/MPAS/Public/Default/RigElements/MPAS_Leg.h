@@ -28,6 +28,9 @@ protected:
 	// ID of a vector stack, where effector shift is calculated
 	int32 EffectorShiftStackID;
 
+	// Whether the leg is placed properly (used in determining whether the element is active or not)
+	bool ValidPlacement;
+
 	// Whether the leg is ready to make a step
 	bool ReadyToStep;
 
@@ -83,6 +86,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|FootPlacement")
 	float MaxFootVerticalExtent = 200.f;
 
+	// Leg's offset in inactive mode, relative to parent
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|FootPlacement")
+	FVector InactiveOffset = FVector::Zero();
+
 	// Step
 	UPROPERTY(BlueprintReadOnly, Category=Background)
 	FName StepTimelineName;
@@ -132,11 +139,6 @@ public:
 	// How fast the leg responds to changes in Effector Shift
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|ParentPlacement")
 	float EffectorShiftInterpolationSpeed = 10.f;
-	
-
-	// Leg's offset in inactive mode, relative to parent
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|Stability")
-	FVector InactiveOffset = FVector();
 
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Advanced")
@@ -187,6 +189,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "MPAS|Elements|Leg")
 	void SetStepFinishTimeOffset(float newOffset);
 
+	// Whether this element is currently active=
+	virtual bool GetRigElementActive_Implementation() { return Enabled && ValidPlacement; }
+
 	
 	// INTENTION DRIVEN
 
@@ -230,9 +235,6 @@ public:
 	// CALLED BY THE HANDLER : NOTIFICATION Called when a subscribed-to timeline is finished
 	UFUNCTION()
 	void OnStepAnimationTimelineNotify(FName InTimelineName, FName InNotifyName);
-
-	// Called when physics model is disabled for this element
-	virtual void OnPhysicsModelDisabled_Implementation() override;
 
 	// DEBUG
 

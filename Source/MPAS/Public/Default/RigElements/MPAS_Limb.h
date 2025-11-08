@@ -29,15 +29,15 @@ struct FMPAS_LimbSegmentData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName BoneName;
 
-	// NON-Length plane extent of the physics mesh of this segment
+	// NON-Length plane extent of the mesh of this segment (used for visualization)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FVector2D PhysicsMeshExtent;
+	FVector2D SegmentMeshExtent;
 
-	FMPAS_LimbSegmentData(): Length(0), AngularLimits_Min(FRotator(-360, -360, -360)), AngularLimits_Max(FRotator(360, 360, 360)), BoneName(FName()), PhysicsMeshExtent(FVector2D(1, 1)) {}
+	FMPAS_LimbSegmentData(): Length(0), AngularLimits_Min(FRotator(-360, -360, -360)), AngularLimits_Max(FRotator(360, 360, 360)), BoneName(FName()), SegmentMeshExtent(FVector2D(1, 1)) {}
 };
 
 /*
- * Defines AngularLimits and PhysicsMeshExtent for a single segment in UMPAS_Limb
+ * Defines AngularLimits and SegmentMeshExtent for a single segment in UMPAS_Limb
  * Needed to configure FetchFromMesh mode of the limb, as these parameters are impossible to extract from a mesh
  */
 USTRUCT(BlueprintType)
@@ -53,11 +53,11 @@ struct FMPAS_AdditionalLimbSegmentData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FRotator AngularLimits_Max;
 
-	// NON-Length plane extent of the physics mesh of this segment
+	// NON-Length plane extent of the mesh of this segment (used for visualization)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FVector2D PhysicsMeshExtent;
+	FVector2D SegmentMeshExtent;
 
-	FMPAS_AdditionalLimbSegmentData(): AngularLimits_Min(FRotator(-360, -360, -360)), AngularLimits_Max(FRotator(360, 360, 360)), PhysicsMeshExtent(FVector2D(1, 1)) {}
+	FMPAS_AdditionalLimbSegmentData(): AngularLimits_Min(FRotator(-360, -360, -360)), AngularLimits_Max(FRotator(360, 360, 360)), SegmentMeshExtent(FVector2D(1, 1)) {}
 };
 
 
@@ -239,11 +239,11 @@ public:
 	bool Fetch_OriginPosition = true;
 
 	/*
-	 * Defines AngularLimits and PhysicsMeshExtent for each single segment in UMPAS_Limb
+	 * Defines AngularLimits and SegmentMeshExtent for each single segment in UMPAS_Limb
 	 * If not enough entries are specified, extra segments will use the last entry
 	 * If no entries are specified, segments will default to values:
 	 * 			-  AngularLimits = FRotator(90, 90, 90);
-	 * 			-  PhysicsMeshExtent =FVector2D(1, 1);
+	 * 			-  SegmentMeshExtent =FVector2D(1, 1);
 	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|Limb|FetchFromMesh")
 	TArray<FMPAS_AdditionalLimbSegmentData> AdditionalSegmentData;
@@ -252,40 +252,6 @@ public:
 	// An array of all limb segments, the order of the elements defines the order of segments in the limb
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|Limb|CustomChain")
 	TArray<FMPAS_LimbSegmentData> Segments;
-
-
-	/*
-	 * Should the limb automatically generate Physocs element configuration for all of it's segments?
-	 */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="PhysicsModel|Limb")
-	bool AutoPhysicsConfigGeneration = true;
-
-	// Total limb mass, will be distributed between limb segments based on their length
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="PhysicsModel|Limb|AutoGeneration")
-	float LimbMass = 100.f;
-
-	// Air drag that is going to be applied to each segment
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="PhysicsModel|Limb|AutoGeneration")
-	float AirDrag = 1.f;
-
-	// How far can physics elements go from their original location
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="PhysicsModel|Limb|AutoGeneration")
-	float LocationDrift = 10.f;
-
-	// The type of the element's physical attachment to its parent, determines the generation process and the behavior of the Physics Model
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="PhysicsModel|Limb|AutoGeneration")
-	EMPAS_PhysicsModelAttachmentType SegmentParentPhysicalAttachmentType = EMPAS_PhysicsModelAttachmentType::LimitedPosition;
-
-	// Physics element class that is going to be instantiated for every limb segment
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="PhysicsModel|Limb|AutoGeneration")
-	TSubclassOf<class UMPAS_PhysicsModelElement> PhysicsElementClass = UMPAS_PhysicsModelElement::StaticClass();
-
-	/*
-	 * The mesh that is going to be applied to each physics element in the limb
-	 * Make sure the mesh scales correctly (like the example MPAS_PhysicsLimbSegmentMesh_Rectange, that is recommened to use)
-	 */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="PhysicsModel|Limb|AutoGeneration")
-	UStaticMesh* LimbPhysicsMesh;
 
 
 // DATA
@@ -360,11 +326,6 @@ protected:
 	// Initializes limb's segments and state
 	void InitLimb();
 
-	/* Generates a config for physics elements that are going to be created during physics model generation phase
-	 * If automatic generation is disabled, it will still match defined physics elements with limb segments
-	 */
-	void GeneratePhysicsModelConfiguration();
-
 	// Solves the limb by applying the specified algorithm to the segments
 	void SolveLimb();
 
@@ -422,23 +383,12 @@ protected:
 	// CALLED BY THE HANDLER : Contains the logic that links this element with other elements in the rig
 	virtual void LinkRigElement(class UMPAS_Handler* InHandler) override;
 
-	// CALLED BY THE HANDLER : Links element to it's physics model equivalent
-	virtual void InitPhysicsModel(const TArray<UMPAS_PhysicsModelElement*>& InPhysicsElements) override;
 
 	// Updating Rig Element every tick
 	virtual void UpdateRigElement(float DeltaTime) override;
 
 	// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
 	virtual void SyncToFetchedBoneTransforms() override;
-
-
-	// PHYSICS MODEL
-
-	// Called when physics model is enabled, applies location and rotation of physics elements to the rig element
-	virtual void ApplyPhysicsModelLocationAndRotation_Implementation(float DeltaTime) override;
-
-	// Returns the location, where physics element needs to be once the physics model is enabled
-	virtual FTransform GetDesiredPhysicsElementTransform_Implementation(int32 PhysicsElementID) override;
 
 
 	// Math/Utilities

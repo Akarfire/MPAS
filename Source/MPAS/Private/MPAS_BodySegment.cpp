@@ -12,9 +12,6 @@ UMPAS_BodySegment::UMPAS_BodySegment()
     // Position Driver settings
     PositionDriverIntegration_LocationStackName = "DesiredLocation";
     PositionDriverIntegration_RotationStackName = "DesiredRotation";
-
-    // Depricated
-    PhysicsElementsConfiguration.Add(FMPAS_PhysicsElementConfiguration());
 }
 
 // CALLED BY THE HANDLER : Initializing Rig Element

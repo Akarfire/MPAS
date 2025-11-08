@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "IntentionDriving/MPAS_IntentionStateMachine.h"
-#include "MPAS_PhysicsModel.h"
 #include "STT_TimerController.h"
 #include "MPAS_Handler.generated.h"
 
@@ -367,74 +366,6 @@ public:
 	// Returns Input Target Rotation
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|Input")
 	FRotator GetInputTargetRotation() { return InputTargetRotation; }
-
-
-
-// PHYSICS MODEL
-
-protected:
-
-	// A map of all physics elements in the physics model : < Rig Element Name - Pointer to physics element component>
-	UPROPERTY() 
-	TMap<FName, FMPAS_PhysicsElementsArray> PhysicsModelElements;
-
-	/* 
-	 * A map of all physics constraints in the physics model : < Attached Element Name - Constraint Data >
-	 * Used for reactivating constraints when the physics model is enabled
-	 * (Honestly, this is a work around of an Unreal thing, that quitly kills the constraint 
-	 * when the collision on one of the constrainted objects is disabled)
-	 */
-	UPROPERTY() 
-	TMap<FName, FMPAS_ElementPhysicsConstraints> PhysicsModelConstraints;
-
-	// Whether the physics model is processed for this rig or not
-	bool PhysicsModelEnabled;
-
-public:
-
-	// Time (in seconds) between restabilization attempts (when physics model is enabled)
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|PhysicsModel")
-	float RestabilizationCycleTime = 3.f;
-
-protected:
-
-	// Generates a physics model based on all rig elements
-	void GeneratePhysicsModel();
-
-	// An iteration of generating of a physics model
-	void GeneratePhysicsElement(FName InRigElementName);
-
-	// Updates all physics elements in the physics model, called when the physics model is enabled
-	void UpdatePhysicsModel(float DeltaTime);
-
-public:
-
-	// Tells the handler whether the physics model should be processed for this rig or not
-	UFUNCTION(BlueprintCallable, Category =  "MPAS|Handler|PhysicsModel")
-	void SetPhysicsModelEnabled(bool InNewEnabled);
-
-	// Whether the physics model is processed for this rig or not
-	UFUNCTION(BlueprintCallable, Category =  "MPAS|Handler|PhysicsModel")
-	bool GetPhysicsModelEnabled() { return PhysicsModelEnabled; }
-
-	// Enables physics model for all rig elements
-	UFUNCTION(BlueprintCallable, Category =  "MPAS|Handler|PhysicsModel")
-	void EnablePhysicsModelFullRig();
-
-	// Returns data about all of the registered physics model constraints
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category =  "MPAS|Handler|PhysicsModel")
-	const TMap<FName, FMPAS_ElementPhysicsConstraints>& GetPhysicsModelConstraints() { return PhysicsModelConstraints; }
-
-	// Called by a restabilization timer, attempts restabilization of the rig, if it's physics model is enabled
-	UFUNCTION()
-	void OnRestabilizationCycleTicked();
-
-public:
-	// CALLED BY THE RIG ELEMENT: Reactivates element's parent  physics constraint in the physics model (see PhysicsModelConstraints description)
-	void ReactivatePhysicsModelConstraint(FName InRigElementName);
-
-	// CALLED BY THE RIG ELEMENT: Deactivates element's parent  physics constraint in the physics model (see PhysicsModelConstraints description)
-	void DeactivatePhysicsModelConstraint(FName InRigElementName);
 
 
 

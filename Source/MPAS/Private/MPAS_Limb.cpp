@@ -6,7 +6,6 @@
 #include "Engine/SkeletalMesh.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/KismetStringLibrary.h"
-#include "PhysicsEngine/PhysicsConstraintComponent.h"
 
 // Constructor
 UMPAS_Limb::UMPAS_Limb() {}
@@ -128,73 +127,11 @@ void UMPAS_Limb::InitLimb()
         {
             Segments[i].AngularLimits_Min = AdditionalSegmentData[UKismetMathLibrary::Clamp(i, 0, AdditionalSegmentData.Num() - 1)].AngularLimits_Min;
             Segments[i].AngularLimits_Max = AdditionalSegmentData[UKismetMathLibrary::Clamp(i, 0, AdditionalSegmentData.Num() - 1)].AngularLimits_Max;
-            Segments[i].PhysicsMeshExtent = AdditionalSegmentData[UKismetMathLibrary::Clamp(i, 0, AdditionalSegmentData.Num() - 1)].PhysicsMeshExtent;
+            Segments[i].SegmentMeshExtent = AdditionalSegmentData[UKismetMathLibrary::Clamp(i, 0, AdditionalSegmentData.Num() - 1)].SegmentMeshExtent;
         }
 
     // Fillin out target state with a default value of the initial state
     TargetState = CurrentState;
-}
-
-/* Generates a config for physics elements that are going to be created during physics model generation phase
- * If automatic generation is disabled, it will still match defined physics elements with limb segments
- */
-void UMPAS_Limb::GeneratePhysicsModelConfiguration()
-{
-    if (AutoPhysicsConfigGeneration)
-    {
-        /* 
-        * Creating a mass distribution map for all limb segments 
-        * each element is a percentage of how much mass needs to be allocated to each limb segment
-        */
-        TArray<float> LimbMassDistribution;
-        for (auto& Seg: Segments)
-            LimbMassDistribution.Add(Seg.Length / MaxExtent); 
-
-        PhysicsElementsConfiguration.Empty();
-
-        for (int i = 0; i < Segments.Num(); i++)
-        {
-            FMPAS_PhysicsElementConfiguration NewConfig;
-
-            // General physics element config setup
-
-            NewConfig.PhysicsElementClass = PhysicsElementClass;
-            NewConfig.PhysicsMesh = LimbPhysicsMesh;
-
-            NewConfig.PhysicsMeshRelativeTransform.SetScale3D(FVector( Segments[i].Length / 100, Segments[i].PhysicsMeshExtent.X, Segments[i].PhysicsMeshExtent.Y ));
-            NewConfig.Mass = LimbMass * LimbMassDistribution[i];
-            NewConfig.AirDrag = AirDrag;
-            
-            NewConfig.ParentPhysicalAttachmentType = SegmentParentPhysicalAttachmentType;
-
-            NewConfig.PhysicsConstraintLimits = FVector(LocationDrift, LocationDrift, LocationDrift);
-           /* if (Segments[i].AngularLimits != FRotator(0, 0, 0))
-                NewConfig.PhysicsAngularLimits = Segments[i].AngularLimits;*/
-
-            NewConfig.DisableCollisionWithParent = true;
-
-            // Chain linking
-            // First element case
-            if (i == 0)
-                NewConfig.ParentType = EMPAS_PhysicsModelParentType::RigElement;
-        
-            else
-            {
-                NewConfig.ParentType = EMPAS_PhysicsModelParentType::ChainedPhysicsElement;
-                NewConfig.ParentPhysicsElementID = i - 1;
-            }
-
-            // Creating Position and Rotation stacks and applying them to the configuration
-            NewConfig.PositionStackID = RegisterVectorStack("PhysicsElementPosition_" + UKismetStringLibrary::Conv_IntToString(i));
-            NewConfig.RotationStackID = RegisterRotationStack("PhysicsElementRotation_" + UKismetStringLibrary::Conv_IntToString(i));
-
-            RegisterVectorLayer(NewConfig.PositionStackID, "PhysicsElementPosition", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 0, true);
-            RegisterRotationLayer(NewConfig.RotationStackID, "PhysicsElementRotation", EMPAS_LayerBlendingMode::Normal, 1.f, 0, true);
-
-
-            PhysicsElementsConfiguration.Add(NewConfig);
-        }
-    }
 }
 
 
@@ -862,8 +799,6 @@ void UMPAS_Limb::InitRigElement(class UMPAS_Handler* InHandler)
             Pole.Value.STACK_VectorStackID = RegisterVectorStack("PoleTarget_" + UKismetStringLibrary::Conv_IntToString(Pole.Key));
 
     InitLimb();
-
-    GeneratePhysicsModelConfiguration();
 }
 
 // CALLED BY THE HANDLER : Contains the logic that links this element with other elements in the rig
@@ -878,21 +813,6 @@ void UMPAS_Limb::LinkRigElement(class UMPAS_Handler* InHandler)
     }
 }
 
-// CALLED BY THE HANDLER : Links element to it's physics model equivalent
-void UMPAS_Limb::InitPhysicsModel(const TArray<UMPAS_PhysicsModelElement*>& InPhysicsElements)
-{
-    Super::InitPhysicsModel(InPhysicsElements);
-
-    // Setting physics contraints' positions to the correct ones
-    const auto& Constraints = GetHandler()->GetPhysicsModelConstraints();
-
-    for (int32 i = 1; i < Constraints[RigElementName].Constraints.Num(); i++)
-    {
-        auto& Constr = Constraints[RigElementName].Constraints[i];
-        Constr.ConstraintComponent->SetWorldLocation( Constr.Body_1->GetComponentLocation() + Constr.Body_1->GetForwardVector() * Constr.Body_1->GetComponentScale().X * 100 );
-    }
-}
-
 // Updating Rig Element every tick
 void UMPAS_Limb::UpdateRigElement(float DeltaTime)
 {
@@ -902,7 +822,7 @@ void UMPAS_Limb::UpdateRigElement(float DeltaTime)
 
     SetWorldRotation(FRotator::ZeroRotator);
 
-    if (Initialized && GetRigElementActive() && !GetPhysicsModelEnabled())
+    if (Initialized && GetRigElementActive())
     {
         InterpolateLimb(DeltaTime);
         SolveLimb();
@@ -921,37 +841,6 @@ void UMPAS_Limb::SyncToFetchedBoneTransforms()
             CurrentState[i].Rotation = (*BoneTransform).GetRotation().Rotator();
         }
     }
-}
-
-
-// PHYSICS MODEL
-
-// Called when physics model is enabled, applies position and rotation of physics elements to the rig element
-void UMPAS_Limb::ApplyPhysicsModelLocationAndRotation_Implementation(float DeltaTime)
-{
-    for(int32 i = 0; i < PhysicsElementsConfiguration.Num(); i++)
-    {
-        FMPAS_LimbSegmentState NewState;
-        NewState.Location = CalculateVectorStackValue(PhysicsElementsConfiguration[i].PositionStackID);
-        NewState.Rotation = CalculateRotationStackValue(PhysicsElementsConfiguration[i].RotationStackID);
-
-        WriteSegmentState(i, NewState);
-    }
-}
-
-// Returns the position, where physics element needs to be once the physics model is enabled
-FTransform UMPAS_Limb::GetDesiredPhysicsElementTransform_Implementation(int32 PhysicsElementID)
-{
-    FTransform LimbSegmentTransform;
-    
-    if (CurrentState.IsValidIndex(PhysicsElementID))
-    {
-        LimbSegmentTransform.SetLocation(CurrentState[PhysicsElementID].Location);
-        LimbSegmentTransform.SetRotation(FQuat(CurrentState[PhysicsElementID].Rotation));
-        LimbSegmentTransform.SetScale3D(FVector(1, 1, 1));
-    }
-
-    return LimbSegmentTransform;
 }
 
 
