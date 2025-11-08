@@ -1,3 +1,6 @@
+# MPAS - Modular Procedural Animation System
+---
+
 ### What is MPAS?
 
 An Unreal Engine 5 Plugin, containing a custom procedural animation solution with a focus on modularity and customizability.
