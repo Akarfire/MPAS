@@ -1,5 +1,4 @@
 # MPAS - Modular Procedural Animation System
----
 
 ### What is MPAS?
 
