@@ -28,6 +28,9 @@ protected:
 	// ID of a vector stack, where effector shift is calculated
 	int32 EffectorShiftStackID;
 
+	// Whether the leg is placed properly (used in determining whether the element is active or not)
+	bool ValidPlacement;
+
 	// Whether the leg is ready to make a step
 	bool ReadyToStep;
 
@@ -64,6 +67,11 @@ protected:
 	float SpeedMultiplier = 1.f;
 
 
+	// Bone Transform Syncing
+	int32 BoneTransformSync_LocationLayerID;
+	int32 BoneTransformSync_RotationLayerID;
+
+
 public:
 	UMPAS_Leg();
 
@@ -77,6 +85,10 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|FootPlacement")
 	float MaxFootVerticalExtent = 200.f;
+
+	// Leg's offset in inactive mode, relative to parent
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|FootPlacement")
+	FVector InactiveOffset = FVector::Zero();
 
 	// Step
 	UPROPERTY(BlueprintReadOnly, Category=Background)
@@ -127,11 +139,17 @@ public:
 	// How fast the leg responds to changes in Effector Shift
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|ParentPlacement")
 	float EffectorShiftInterpolationSpeed = 10.f;
-	
 
-	// Leg's offset in inactive mode, relative to parent
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|Stability")
-	FVector InactiveOffset = FVector();
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Advanced")
+	int32 EffectorLayerPriority = 1;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Advanced")
+	int32 BoneTransformSyncingLayerPriority = 1;
+
+	//UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Advanced")
+	//float BoneTransformSyncingDistanceSquaredThreshold = 100.f;
+
 
 protected:
 	
@@ -171,6 +189,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "MPAS|Elements|Leg")
 	void SetStepFinishTimeOffset(float newOffset);
 
+	// Whether this element is currently active=
+	virtual bool GetRigElementActive_Implementation() { return Enabled && ValidPlacement; }
+
 	
 	// INTENTION DRIVEN
 
@@ -195,6 +216,9 @@ public:
 	// Updating Rig Element every tick
 	virtual void UpdateRigElement(float DeltaTime) override;
 
+	// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
+	virtual void SyncToFetchedBoneTransforms() override;
+
 
 	// CALLED BY THE HANDLER : NOTIFICATION Called when a subscribed-to parameter is changed
 	UFUNCTION()
@@ -211,9 +235,6 @@ public:
 	// CALLED BY THE HANDLER : NOTIFICATION Called when a subscribed-to timeline is finished
 	UFUNCTION()
 	void OnStepAnimationTimelineNotify(FName InTimelineName, FName InNotifyName);
-
-	// Called when physics model is disabled for this element
-	virtual void OnPhysicsModelDisabled_Implementation() override;
 
 	// DEBUG
 

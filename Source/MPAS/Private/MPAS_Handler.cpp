@@ -6,8 +6,6 @@
 #include "MPAS_RigElement.h"
 #include "Default/RigElements/MPAS_VoidRigElement.h"
 #include "Kismet/GameplayStatics.h"
-#include "PhysicsEngine/PhysicsConstraintComponent.h"
-#include "PhysicsEngine/ConstraintInstanceBlueprintLibrary.h"
 #include "Default/RigElements/PositionDrivers/MPAS_PositionDriver.h"
 
 
@@ -36,9 +34,6 @@ void UMPAS_Handler::BeginPlay()
 	// Initialize rig after scanning
 	InitRig();
 
-	// Generates rig's physics model
-	GeneratePhysicsModel();
-
 	// Lings rig after initializing
 	LinkRig();
 
@@ -57,14 +52,18 @@ void UMPAS_Handler::TickComponent(float DeltaTime, ELevelTick TickType, FActorCo
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+	// Autonomously fetching bone transforms, if needed
+	if (UseAutoBoneTransformFetching)
+		AutoFetchBoneTransforms();
+
+	// Synchronizing rig elements with the fetched bone transforms
+	SyncBoneTransforms();
+
 	// Updates rig every tick
 	UpdateRig(DeltaTime);
 
 	// Updates intention driver
 	UpdateIntentionDriver(DeltaTime);
-
-	// Updates physics model if its enabled
-	UpdatePhysicsModel(DeltaTime);
 }
 
 
@@ -258,6 +257,70 @@ FTransform UMPAS_Handler::GetSingleBoneTransform(FName InBone)
 
 
 
+// BONE TRANFORM FETCHING AND SYNCHRONIZATION
+
+// Automatically fetches bone transforms from the AutoBoneTransformFetchMesh and stores them into FetchedBoneTransforms
+void UMPAS_Handler::AutoFetchBoneTransforms()
+{
+	if (SkipAutoBoneTransformFetchForTheFirstUpdate)
+	{
+		SkipAutoBoneTransformFetchForTheFirstUpdate = false;
+		return;
+	}
+
+	if (!AutoBoneTransformFetchMesh || AutoBoneTransformFetchSelection.Num() == 0) return;
+	
+	for (auto& BoneName : AutoBoneTransformFetchSelection)
+	{
+		int32 BoneIndex = AutoBoneTransformFetchMesh->GetBoneIndex(BoneName);
+
+		if (BoneIndex != INDEX_NONE)
+			FetchedBoneTransforms.Add(BoneName, AutoBoneTransformFetchMesh->GetBoneTransform(BoneIndex));
+	}
+}
+
+// Synchronizes rig elements to the most recently fetched bone transforms
+void UMPAS_Handler::SyncBoneTransforms()
+{
+	for (auto& RigElementData : RigData)
+		if (RigElementData.Value.RigElement->AlwaysSyncBoneTransform || ForceSyncBoneTransforms)
+			RigElementData.Value.RigElement->SyncToFetchedBoneTransforms();
+
+	ForceSyncBoneTransforms = false;
+}
+
+// Specifies the skeletal mesh, from which bone transforms shall be fetched during autonomous bone fetch process
+void UMPAS_Handler::SetAutoBoneTransformFetchMesh(USkeletalMeshComponent* InMesh, bool AddAllBonesToFetchSelection)
+{
+	AutoBoneTransformFetchMesh = InMesh;
+
+	if (AddAllBonesToFetchSelection)
+	{
+		TArray<FName> BoneNames;
+		AutoBoneTransformFetchMesh->GetBoneNames(BoneNames);
+
+		for (auto& Bone : BoneNames)
+			AddAutoFetchBone(Bone);
+	}
+}
+
+// Manually fetches bone transforms from the specified mesh
+// NOTE: Autonomous Fetch OVERRIDES cached bone transforms, so it must be disabled in order to use Manual Fetching.
+void UMPAS_Handler::ManualFetchBoneTransforms(USkeletalMeshComponent* InFetchMesh, const TSet<FName>& Selection)
+{
+	if (!InFetchMesh || Selection.Num() == 0) return;
+	
+	for (auto& BoneName : Selection)
+	{
+		int32 BoneIndex = InFetchMesh->GetBoneIndex(BoneName);
+
+		if (BoneIndex != INDEX_NONE)
+			FetchedBoneTransforms.Add(BoneName, InFetchMesh->GetBoneTransform(BoneIndex));
+	}
+}
+
+
+
 // INTENTION DRIVER
 
 // Updates all Intention State Machines
@@ -326,264 +389,6 @@ bool UMPAS_Handler::IsIntentionStateMachineActive(FName InStateMachineName)
 		return false;
 
 	return IntentionStateMachines[InStateMachineName]->IsActive();
-}
-
-
-
-// PHYSICS MODEL
-
-// Generates a physics model based on all rig elements
-void UMPAS_Handler::GeneratePhysicsModel()
-{
-	for (auto& RigElementData: RigData)
-	{	
-		if (RigElementData.Value.ParentComponent == FName("Core"))
-			GeneratePhysicsElement(RigElementData.Key);
-	}
-
-	TimerController->CreateTimer("RestabilizationTimer", RestabilizationCycleTime, true, false);
-	TimerController->SubscribeToTimer("RestabilizationTimer", this, "OnRestabilizationCycleTicked");
-}
-
-// An iteration of generating of a physics model
-void UMPAS_Handler::GeneratePhysicsElement(FName InRigElementName)
-{
-	UMPAS_RigElement* RigElement = RigData[InRigElementName].RigElement;
-
-	TArray<UMPAS_PhysicsModelElement*> AllPhysicsElements;
-
-	PhysicsModelConstraints.Add(InRigElementName, FMPAS_ElementPhysicsConstraints());
-
-	for (int32 i = 0; i < RigElement->PhysicsElementsConfiguration.Num(); i++)
-	{
-		if(RigElement->PhysicsElementsConfiguration[i].PhysicsElementClass)
-		{
-			const FMPAS_PhysicsElementConfiguration& PhysicsElementConfig = RigElement->PhysicsElementsConfiguration[i];
-			
-			// Creating physics element
-			UActorComponent* PhysicsElementActorComponent = GetOwner()->AddComponentByClass(PhysicsElementConfig.PhysicsElementClass, true, FTransform(), false);
-			UMPAS_PhysicsModelElement* PhysicsElement = Cast<UMPAS_PhysicsModelElement>(PhysicsElementActorComponent);
-			PhysicsElement->SetWorldTransform(RigElement->GetComponentTransform());
-			GetOwner()->AddInstanceComponent(PhysicsElement);
-
-			PhysicsElement->SetMobility(EComponentMobility::Movable);
-
-			// Attachements
-
-			if (RigData[InRigElementName].ParentComponent != "Core")
-			{
-				
-				// Hard
-				if (PhysicsElementConfig.ParentPhysicalAttachmentType == EMPAS_PhysicsModelAttachmentType::Hard)
-				{
-					FAttachmentTransformRules HardAttachmentRules = FAttachmentTransformRules(EAttachmentRule::KeepWorld, true);
-
-					if (PhysicsElementConfig.ParentType == EMPAS_PhysicsModelParentType::ChainedPhysicsElement && AllPhysicsElements.IsValidIndex(PhysicsElementConfig.ParentPhysicsElementID))
-						PhysicsElement->AttachToComponent(AllPhysicsElements[PhysicsElementConfig.ParentPhysicsElementID], HardAttachmentRules);
-
-					else if(PhysicsModelElements[RigData[InRigElementName].ParentComponent].Elements.IsValidIndex(0))
-						PhysicsElement->AttachToComponent(PhysicsModelElements[RigData[InRigElementName].ParentComponent].Elements[0], HardAttachmentRules);
-				}
-
-				// Limited
-				else if (PhysicsElementConfig.ParentPhysicalAttachmentType == EMPAS_PhysicsModelAttachmentType::LimitedPosition || 
-						 PhysicsElementConfig.ParentPhysicalAttachmentType == EMPAS_PhysicsModelAttachmentType::LimitedRotation ||
-						 PhysicsElementConfig.ParentPhysicalAttachmentType == EMPAS_PhysicsModelAttachmentType::LimitedPositionRotation)
-				{
-					// Create and setup a physics constraint
-					// Creating the component
-					UActorComponent* PhysicsConstraintActorComponent = GetOwner()->AddComponentByClass(UPhysicsConstraintComponent::StaticClass(), false, RigElement->GetDesiredPhysicsElementTransform(i), false);
-					UPhysicsConstraintComponent* PhysicsConstraintComponent = Cast<UPhysicsConstraintComponent>(PhysicsConstraintActorComponent);
-					GetOwner()->AddInstanceComponent(PhysicsConstraintComponent);
-
-					PhysicsConstraintComponent->SetDisableCollision(PhysicsElementConfig.DisableCollisionWithParent);
-					//PhysicsConstraintComponent->SetAngularDriveParams(PhysicsElementConfig.ConstraintAngularPositionStrength, PhysicsElementConfig.ConstraintAngularVelocityStrength, PhysicsElementConfig.ConstraintAngularMaxForce);
-					//PhysicsConstraintComponent->SetLinearDriveParams(PhysicsElementConfig.ConstraintLinearPositionStrength, PhysicsElementConfig.ConstraintLinearVelocityStrength, PhysicsElementConfig.ConstraintLinearMaxForce);
-
-						/*
-						// This was an experiment to enable parent dominates
-						// It failed because physics elemetns are not in any heirarchichal relationship engine-wise (they are not attached to each other)
-
-						FConstraintInstanceAccessor ConstraintAccessor = PhysicsConstraintComponent->GetConstraint();
-						UConstraintInstanceBlueprintLibrary::SetParentDominates(ConstraintAccessor, true);
-						ConstraintAccessor.Modify();
-						*/
-
-					// Constraint Component attachement
-					UPrimitiveComponent* ParentElement = nullptr;
-
-					if (PhysicsElementConfig.ParentType == EMPAS_PhysicsModelParentType::ChainedPhysicsElement && AllPhysicsElements.IsValidIndex(PhysicsElementConfig.ParentPhysicsElementID))
-						ParentElement = AllPhysicsElements[PhysicsElementConfig.ParentPhysicsElementID];
-
-					else if(PhysicsModelElements[RigData[InRigElementName].ParentComponent].Elements.IsValidIndex(0) && PhysicsModelElements[RigData[InRigElementName].ParentComponent].Elements[0] != PhysicsElement)
-						ParentElement = PhysicsModelElements[RigData[InRigElementName].ParentComponent].Elements[0];
-
-					else
-					{
-						UActorComponent* PhysicsHookComponent = GetOwner()->AddComponentByClass(UPrimitiveComponent::StaticClass(), false, RigElement->GetDesiredPhysicsElementTransform(i), false);
-						ParentElement = Cast<UPrimitiveComponent>(PhysicsHookComponent);
-						GetOwner()->AddInstanceComponent(PhysicsHookComponent);
-
-						ParentElement->AttachToComponent(RigElement, FAttachmentTransformRules(EAttachmentRule::KeepWorld, true));
-					}
-
-					PhysicsConstraintComponent->SetWorldLocation(PhysicsElement->GetComponentLocation());
-					FAttachmentTransformRules LimitedConstraintAttachmentRules = FAttachmentTransformRules(EAttachmentRule::KeepWorld, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, true);
-					//FAttachmentTransformRules LimitedConstraintAttachmentRules = FAttachmentTransformRules(EAttachmentRule::SnapToTarget, true);
-					PhysicsConstraintComponent->AttachToComponent(ParentElement, LimitedConstraintAttachmentRules);
-
-					// Setting constrainted elements
-					//PhysicsConstraintComponent->SetConstrainedComponents(PhysicsModelElements[RigData[InRigElementName].ParentComponent], FName(), PhysicsElement, FName());
-
-					// Constraint settings
-
-					// Positional limits
-					if (PhysicsElementConfig.ParentPhysicalAttachmentType == EMPAS_PhysicsModelAttachmentType::LimitedPosition ||
-						PhysicsElementConfig.ParentPhysicalAttachmentType == EMPAS_PhysicsModelAttachmentType::LimitedPositionRotation)
-					{
-						PhysicsConstraintComponent->SetLinearXLimit(ELinearConstraintMotion::LCM_Limited, PhysicsElementConfig.PhysicsConstraintLimits.X);
-						PhysicsConstraintComponent->SetLinearYLimit(ELinearConstraintMotion::LCM_Limited, PhysicsElementConfig.PhysicsConstraintLimits.Y);
-						PhysicsConstraintComponent->SetLinearZLimit(ELinearConstraintMotion::LCM_Limited, PhysicsElementConfig.PhysicsConstraintLimits.Z);
-					}
-
-					// Angular Limitis
-					if (PhysicsElementConfig.ParentPhysicalAttachmentType == EMPAS_PhysicsModelAttachmentType::LimitedRotation ||
-						PhysicsElementConfig.ParentPhysicalAttachmentType == EMPAS_PhysicsModelAttachmentType::LimitedPositionRotation)
-					{
-						PhysicsConstraintComponent->SetAngularSwing1Limit(EAngularConstraintMotion::ACM_Limited, PhysicsElementConfig.PhysicsAngularLimits.Yaw);
-						PhysicsConstraintComponent->SetAngularSwing2Limit(EAngularConstraintMotion::ACM_Limited, PhysicsElementConfig.PhysicsAngularLimits.Pitch);
-						PhysicsConstraintComponent->SetAngularTwistLimit(EAngularConstraintMotion::ACM_Limited, PhysicsElementConfig.PhysicsAngularLimits.Roll);
-					}
-					
-					//PhysicsConstraintComponent->UpdateConstraintFrames();
-					//PhysicsConstraintComponent->ConstraintInstance.InitConstraint(PhysicsModelElements[RigData[InRigElementName].ParentComponent]->GetBodyInstance(), PhysicsElement->GetBodyInstance(), 1.f, this);
-
-					// Storing constraint data
-					FMPAS_PhysicsModelConstraintData ConstraintData(PhysicsConstraintComponent, ParentElement, PhysicsElement);
-					PhysicsModelConstraints[InRigElementName].Constraints.Add(ConstraintData);
-
-					PhysicsConstraintComponent->ComponentTags.Add(FName("PhysicsConstraint: " + ParentElement->GetName() + " -> " + PhysicsElement->GetName()));
-				}
-
-				// Free
-				else if (PhysicsElementConfig.ParentPhysicalAttachmentType == EMPAS_PhysicsModelAttachmentType::Free)
-				{
-					// Do nothing, I guess
-				}
-			}
-
-			else
-			{
-				// Core Physics Elements Attachment
-				//FAttachmentTransformRules CoreElementsAttachmentRules = FAttachmentTransformRules(EAttachmentRule::KeepWorld, false);
-				//PhysicsElement->AttachToComponent(GetCore(), CoreElementsAttachmentRules);
-			}
-
-			AllPhysicsElements.Add(PhysicsElement);
-		}
-	}
-
-	// Storing physics elements data in handler
-	PhysicsModelElements.Add(InRigElementName, FMPAS_PhysicsElementsArray(AllPhysicsElements));
-
-	// Initializing model elements
-	RigElement->InitPhysicsModel(AllPhysicsElements);
-
-	for (int32 i = 0; i < AllPhysicsElements.Num(); i++)
-		AllPhysicsElements[i]->InitPhysicsElement(RigElement, i);
-		
-	// Propogate physics model generation
-	for (FName& ChildElement: RigData[InRigElementName].ChildElements)
-		GeneratePhysicsElement(ChildElement);
-}
-
-
-// Tells the handler whether the physics model should be processed for this rig or not
-void UMPAS_Handler::SetPhysicsModelEnabled(bool InNewEnabled) 
-{ 
-	PhysicsModelEnabled = InNewEnabled;
-
-	if (PhysicsModelEnabled)
-	{
-		// Restarting a restabilization Timer
-		TimerController->ResetTimer("RestabilizationTimer");
-		TimerController->StartTimer("RestabilizationTimer");
-	}
-
-	else
-		TimerController->PauseTimer("RestabilizationTimer");
-}
-
-
-// Updates all physics elements in the physics model, called when the physics model is enabled
-void UMPAS_Handler::UpdatePhysicsModel(float DeltaTime)
-{
-	if (PhysicsModelEnabled)
-	{
-		for (auto& PhysicsElementArray: PhysicsModelElements)
-			for (auto& PhysicsElement: PhysicsElementArray.Value.Elements)
-				PhysicsElement->UpdatePhysicsElement(DeltaTime);
-	}
-}
-
-
-// Enables physics model for all rig elements
-void UMPAS_Handler::EnablePhysicsModelFullRig()
-{
-	SetPhysicsModelEnabled(true);
-	for (auto& RigElement: RigData)
-		RigElement.Value.RigElement->SetPhysicsModelEnabled(true);
-}
-
-
-// CALLED BY THE RIG ELEMENT: Reactivates element's parent  physics constraint in the physics model (see PhysicsModelConstraints description)
-void UMPAS_Handler::ReactivatePhysicsModelConstraint(FName InRigElementName)
-{
-	if (!PhysicsModelConstraints.Contains(InRigElementName))
-		return;
-
-	for (auto& ConstraintData: PhysicsModelConstraints[InRigElementName].Constraints)
-	{
-		ConstraintData.ConstraintComponent->Activate();
-		
-		// Maybe in the future I will add bone names to this, but not sure how useful this is in the case of an auto generated physics model
-		ConstraintData.ConstraintComponent->SetConstrainedComponents(ConstraintData.Body_1, FName(), ConstraintData.Body_2, FName());
-	}
-}
-
-// CALLED BY THE RIG ELEMENT: Deactivates element's parent  physics constraint in the physics model (see PhysicsModelConstraints description)
-void UMPAS_Handler::DeactivatePhysicsModelConstraint(FName InRigElementName)
-{
-	if (!PhysicsModelConstraints.Contains(InRigElementName))
-		return;
-
-	for (auto& ConstraintData: PhysicsModelConstraints[InRigElementName].Constraints)
-		ConstraintData.ConstraintComponent->Deactivate();
-}
-
-// Called by a restabilization timer, attempts restabilization of the rig, if it's physics model is enabled
-void UMPAS_Handler::OnRestabilizationCycleTicked()
-{
-	for (auto& CoreElement: GetCoreElements())
-	{
-		if (GetRigData()[CoreElement].RigElement->GetVelocity().Size() < 5.f)
-		{
-			FMPAS_PropogationSettings PropogationSettings;
-			PropogationSettings.PropogateToParent = false;
-
-			TArray<FName> Propogation;
-			PropogateFromElement(Propogation, CoreElement, PropogationSettings);
-
-			for (auto& Element: Propogation)
-			{
-				UMPAS_RigElement* RigElement = GetRigData()[Element].RigElement;
-				if (RigElement->GetStabilityStatus() == EMPAS_StabilityStatus::Stable)
-				{
-					RigElement->SetPhysicsModelEnabled(false);
-				}
-			}
-		}
-	}
 }
 
 

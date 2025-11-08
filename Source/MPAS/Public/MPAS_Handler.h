@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "IntentionDriving/MPAS_IntentionStateMachine.h"
-#include "MPAS_PhysicsModel.h"
 #include "STT_TimerController.h"
 #include "MPAS_Handler.generated.h"
 
@@ -212,6 +211,80 @@ public:
 
 
 
+// BONE TRANFORM FETCHING AND SYNCHRONIZATION
+
+protected:
+
+	// Buffer, containing bone transforms that were fetched from the BoneTransformFetchMesh 
+	// (or any other mesh, specified during manual fetch)
+	TMap<FName, FTransform> FetchedBoneTransforms;
+
+	// Skeletal mesh component, from which autonomous bone transform fetching is performed
+	USkeletalMeshComponent* AutoBoneTransformFetchMesh;
+
+	// List of bones, whose transform shall be fetched in the autonomous bone fetch process
+	TSet<FName> AutoBoneTransformFetchSelection;
+
+	// Whether next update's synchronization should be a forced one (it will called on all elements)
+	bool ForceSyncBoneTransforms = false;
+
+	// Automatically fetches bone transforms from the AutoBoneTransformFetchMesh and stores them into FetchedBoneTransforms
+	void AutoFetchBoneTransforms();
+
+	// Synchronizes rig elements to the most recently fetched bone transforms
+	void SyncBoneTransforms();
+
+public:
+
+	// Whether the bone transforms should be fetched automatically
+	// Fetched bone transforms are then used to update (sync) rig elements positions (Hybrid Animation Methods)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default|BoneTransformFetching")
+	bool UseAutoBoneTransformFetching = true;
+
+	// Prevents mesh's default pose from being fetched on the first handler update
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default|BoneTransformFetching")
+	bool SkipAutoBoneTransformFetchForTheFirstUpdate = true;
+
+
+	// Specifies the skeletal mesh, from which bone transforms shall be fetched during autonomous bone fetch process
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|BoneTransformFetching")
+	void SetAutoBoneTransformFetchMesh(USkeletalMeshComponent* InMesh, bool AddAllBonesToFetchSelection = true);
+
+	// Modifies the selection of bones, whose transform needs to be fetched during autonomous bone fetch process
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|BoneTransformFetching")
+	void AddAutoFetchBone(const FName& InBoneName) { AutoBoneTransformFetchSelection.Add(InBoneName); }
+
+	// Modifies the selection of bones, whose transform needs to be fetched during autonomous bone fetch process
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|BoneTransformFetching")
+	void RemoveAutoFetchBone(const FName& InBoneName) { AutoBoneTransformFetchSelection.Remove(InBoneName); }
+
+
+	// Manually fetches bone transforms from the specified mesh
+	// NOTE: Autonomous Fetch OVERRIDES cached bone transforms, so it must be disabled in order to use Manual Fetching.
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|BoneTransformFetching")
+	void ManualFetchBoneTransforms(USkeletalMeshComponent* InFetchMesh, const TSet<FName>& Selection);
+
+
+	// Performs a Forced Synchronization on the next update (synchronization will be applied to all elements)
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|BoneTransformFetching")
+	void ForceSynchronizeBoneTransforms() { ForceSyncBoneTransforms = true; }
+
+
+	// Buffer, containing bone transforms that were fetched from the BoneTransformFetchMesh 
+	// (or any other mesh, specified during manual fetch)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|BoneTransformFetching")
+	const TMap<FName, FTransform>& GetCachedFetchedBoneTransforms() { return FetchedBoneTransforms; }
+
+	// Skeletal mesh component, from which autonomous bone transform fetching is performed
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|BoneTransformFetching")
+	USkeletalMeshComponent* GetAutoBoneTransformFetchMesh() { return AutoBoneTransformFetchMesh; }
+
+	// List of bones, whose transform shall be fetched in the autonomous bone fetch process
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|BoneTransformFetching")
+	const TSet<FName>& GetAutoBoneTransformFetchSelection() { return AutoBoneTransformFetchSelection; }
+
+
+
 // INTENTION DRIVER
 
 protected:
@@ -293,74 +366,6 @@ public:
 	// Returns Input Target Rotation
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|Input")
 	FRotator GetInputTargetRotation() { return InputTargetRotation; }
-
-
-
-// PHYSICS MODEL
-
-protected:
-
-	// A map of all physics elements in the physics model : < Rig Element Name - Pointer to physics element component>
-	UPROPERTY() 
-	TMap<FName, FMPAS_PhysicsElementsArray> PhysicsModelElements;
-
-	/* 
-	 * A map of all physics constraints in the physics model : < Attached Element Name - Constraint Data >
-	 * Used for reactivating constraints when the physics model is enabled
-	 * (Honestly, this is a work around of an Unreal thing, that quitly kills the constraint 
-	 * when the collision on one of the constrainted objects is disabled)
-	 */
-	UPROPERTY() 
-	TMap<FName, FMPAS_ElementPhysicsConstraints> PhysicsModelConstraints;
-
-	// Whether the physics model is processed for this rig or not
-	bool PhysicsModelEnabled;
-
-public:
-
-	// Time (in seconds) between restabilization attempts (when physics model is enabled)
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Default|PhysicsModel")
-	float RestabilizationCycleTime = 3.f;
-
-protected:
-
-	// Generates a physics model based on all rig elements
-	void GeneratePhysicsModel();
-
-	// An iteration of generating of a physics model
-	void GeneratePhysicsElement(FName InRigElementName);
-
-	// Updates all physics elements in the physics model, called when the physics model is enabled
-	void UpdatePhysicsModel(float DeltaTime);
-
-public:
-
-	// Tells the handler whether the physics model should be processed for this rig or not
-	UFUNCTION(BlueprintCallable, Category =  "MPAS|Handler|PhysicsModel")
-	void SetPhysicsModelEnabled(bool InNewEnabled);
-
-	// Whether the physics model is processed for this rig or not
-	UFUNCTION(BlueprintCallable, Category =  "MPAS|Handler|PhysicsModel")
-	bool GetPhysicsModelEnabled() { return PhysicsModelEnabled; }
-
-	// Enables physics model for all rig elements
-	UFUNCTION(BlueprintCallable, Category =  "MPAS|Handler|PhysicsModel")
-	void EnablePhysicsModelFullRig();
-
-	// Returns data about all of the registered physics model constraints
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category =  "MPAS|Handler|PhysicsModel")
-	const TMap<FName, FMPAS_ElementPhysicsConstraints>& GetPhysicsModelConstraints() { return PhysicsModelConstraints; }
-
-	// Called by a restabilization timer, attempts restabilization of the rig, if it's physics model is enabled
-	UFUNCTION()
-	void OnRestabilizationCycleTicked();
-
-public:
-	// CALLED BY THE RIG ELEMENT: Reactivates element's parent  physics constraint in the physics model (see PhysicsModelConstraints description)
-	void ReactivatePhysicsModelConstraint(FName InRigElementName);
-
-	// CALLED BY THE RIG ELEMENT: Deactivates element's parent  physics constraint in the physics model (see PhysicsModelConstraints description)
-	void DeactivatePhysicsModelConstraint(FName InRigElementName);
 
 
 

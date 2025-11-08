@@ -66,11 +66,11 @@ void UMPAS_RigElement::InitRigElement(class UMPAS_Handler* InHandler)
 	PreviousFrameLocation = GetComponentLocation();
 
 	// Default activation/deactivation
-	if (DefaultActive)
-		SetRigElementActive(true);
+	if (DefaultEnabled)
+		Enabled = true;
 
 	else
-		SetRigElementActive(false);
+		Enabled = false;
 
 	OnInitRigElement(InHandler);
 }
@@ -118,24 +118,6 @@ void UMPAS_RigElement::PostLinkSetupRigElement(UMPAS_Handler* InHandler)
 }
 
 
-// CALLED BY THE HANDLER : Links element to it's physics model equivalent
-void UMPAS_RigElement::InitPhysicsModel(const TArray<UMPAS_PhysicsModelElement*>& InPhysicsElements)
-{
-	PhysicsElements = InPhysicsElements;
-
-	for (int32 i = 0; i < PhysicsElements.Num(); i++)
-	{
-		PhysicsElementsConfiguration[i].PositionStackID = RegisterVectorStack("PhysicsModelStack_" + UKismetStringLibrary::Conv_IntToString(i));
-		PhysicsElementsConfiguration[i].RotationStackID = RegisterRotationStack("PhysicsModelStack_" + UKismetStringLibrary::Conv_IntToString(i));
-
-		RegisterVectorLayer(PhysicsElementsConfiguration[i].PositionStackID, "PhysicsElementLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 0, true);
-		RegisterRotationLayer(PhysicsElementsConfiguration[i].RotationStackID, "PhysicsElementRotation", EMPAS_LayerBlendingMode::Normal, 1.f, 0, true);
-	}
-
-	OnInitPhysicsModel();
-}
-
-
 // NOTIFICATION Called when ORIENTATION_LocationInterpolationMultiplier or ORIENTATION_RotationInterpolationMultiplier parameter value is changed
 void UMPAS_RigElement::OnInterpolationMultiplierChanged(FName InParameterName)
 {
@@ -161,28 +143,21 @@ void UMPAS_RigElement::UpdateRigElement(float DeltaTime)
 		SetVectorSourceValue(0, 1, this, UKismetMathLibrary::Quat_RotateVector(ParentElement->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()) );
 	}
 
-	// Applying physics model if its enaled
-	if (PhysicsModelEnabled && PhysicsElementsConfiguration.Num() > 0)
-		ApplyPhysicsModelLocationAndRotation(DeltaTime);
-
-	// If physics model is not enabled, then we apply normal positioning method
-	else if (PositioningMode == EMPAS_ElementPositionMode::Normal)
-	{
-		ApplyDefaultLocationStack(DeltaTime);
-		ApplyDefaultRotationStack(DeltaTime);
-	}
-
-	if (ReactivatePhysicsModelConstraintNextFrame)
-	{
-		GetHandler()->ReactivatePhysicsModelConstraint(RigElementName);
-		ReactivatePhysicsModelConstraintNextFrame = false;
-	}
+	// Applying default position stacks
+	ApplyDefaultLocationStack(DeltaTime);
+	ApplyDefaultRotationStack(DeltaTime);
 
 	// Calculating velocity
 	CachedVelocity = (GetComponentLocation() - PreviousFrameLocation) / DeltaTime;
 	PreviousFrameLocation = GetComponentLocation();
 
 	OnUpdateRigElement(DeltaTime);
+}
+
+// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
+void UMPAS_RigElement::SyncToFetchedBoneTransforms()
+{
+	OnSyncToFetchedBoneTransforms();
 }
 
 
@@ -717,155 +692,6 @@ float UMPAS_RigElement::GetRotationLayerBlendingFactor(int32 InRotationStackID, 
 		return 0.0f;
 
 	return RotationStacks[InRotationStackID][InRotationLayerID].BlendingFactor;
-}
-
-
-
-// PHYSICS MODEL
-
-// Enables/Disables physics model usage for this element
-void UMPAS_RigElement::SetPhysicsModelEnabled(bool InEnabled)
-{
-	if (InEnabled != PhysicsModelEnabled)
-	{
-		PhysicsModelEnabled = InEnabled;
-
-		// Notify eacg physics element
-		// This will enable physics simulation and collision for all of tghe physics elements
-		if(InEnabled)
-		{
-			for (auto& PhysicsElement: PhysicsElements)
-				if (PhysicsElement)
-					PhysicsElement->OnPhysicsModelEnabled();
-
-			// Semi enable physics model on the parent if its not enabled already
-			if (ParentElement)
-			if (!ParentElement->GetPhysicsModelEnabled())
-				for(auto& ParentPhysicsElement: ParentElement->GetPhysicsElements())
-					ParentPhysicsElement->OnPhysicsModelSemiEnabled();
-
-			// Reactivate constraint if it exists
-			ReactivatePhysicsModelConstraintNextFrame = true;
-			//GetHandler()->ReactivatePhysicsModelConstraint(RigElementName);
-
-			OnPhysicsModelEnabled();
-		}
-		
-		else
-		{
-			GetHandler()->DeactivatePhysicsModelConstraint(RigElementName);
-
-			for (auto& PhysicsElement: PhysicsElements)
-				if (PhysicsElement)
-					PhysicsElement->OnPhysicsModelDisabled();
-
-			OnPhysicsModelDisabled();
-		}
-	}
-}
-
-// Called when physics model is enabled, applies position and rotation of physics elements to the rig element
-void UMPAS_RigElement::ApplyPhysicsModelLocationAndRotation_Implementation(float DeltaTime) 
-{
-	if(PhysicsElements.IsValidIndex(0))
-		if (PhysicsElements[0])
-		{
-			//SetWorldLocation( UKismetMathLibrary::VInterpTo(GetComponentLocation(), CalculatePositionStackValue(PhysicsElementsConfiguration[0].PositionStackID), DeltaTime, PhysicsElementsConfiguration[0].PhysicsModelPositionInterpolationSpeed ));
-			//SetWorldRotation( UKismetMathLibrary::RInterpTo(GetComponentRotation(), CalculateRotationStackValue(PhysicsElementsConfiguration[0].RotationStackID), DeltaTime, PhysicsElementsConfiguration[0].PhysicsModelRotationInterpolationSpeed ));
-			SetWorldLocation(CalculateVectorStackValue(PhysicsElementsConfiguration[0].PositionStackID));
-			SetWorldRotation(CalculateRotationStackValue(PhysicsElementsConfiguration[0].RotationStackID));
-		}
-}
-
-
-
-// STABILITY
-
-// Recalculates stability and calls stability events
-void UMPAS_RigElement::UpdateStability()
-{
-	// Recalculating cached stability
-	float Sum = 0.f;
-	int32 Count = 0;
-
-	for (auto& Effector: StabilityEffectors)
-	{
-		Sum += Effector.Value;
-		Count++;
-	}
-
-	if (Count > 0)
-		CachedStability = Sum / Count;
-	
-	else
-		CachedStability = 1.f;
-
-	EMPAS_StabilityStatus CurrentStabilityStatus = GetStabilityStatus();
-
-	// Recalculating stability status
-	if (GetIsStable())
-		StabilityStatus = EMPAS_StabilityStatus::Stable;
-
-	else if (CachedStability >= StabilityThreshold)
-		StabilityStatus = EMPAS_StabilityStatus::SemiStable;
-	
-	else
-		StabilityStatus = EMPAS_StabilityStatus::Unstable;
-
-
-	// Calling Events
-	if (GetStabilityStatus() != CurrentStabilityStatus)
-		OnStabilityStatusChanged(GetStabilityStatus());
-}
-
-// Whether the element is stable or not
-bool UMPAS_RigElement::GetIsStable()
-{
-	if (ParentElement)
-		return (GetStability() >= StabilityThreshold) && ParentElement->GetIsStable();
-
-	else
-		return GetStability() >= StabilityThreshold;
-}
-
-// Sets a stability effector value, the average of all effector values determines the stability of the element
-void UMPAS_RigElement::SetStabilityEffectorValue(UMPAS_RigElement* InEffector, float InStability)
-{
-	StabilityEffectors.Add(InEffector, InStability);
-
-	UpdateStability();
-}
-
-// Removes an effector from stability effectors (if it is a valid effector)
-void UMPAS_RigElement::RemoveStabilityEffector(UMPAS_RigElement* InEffector)
-{
-	StabilityEffectors.Remove(InEffector);
-
-	UpdateStability();
-}
-
-// Called when the element becomes unstable (do not forget to call SUPER version)
-void UMPAS_RigElement::OnStabilityStatusChanged_Implementation(EMPAS_StabilityStatus NewStabilityStatus)
-{
-
-	// Enable physics model if unstable
-	if (NewStabilityStatus != EMPAS_StabilityStatus::Stable)
-	{
-		GetHandler()->SetPhysicsModelEnabled(true);
-		SetPhysicsModelEnabled(true);
-	}
-
-	// Propogating stability updates to children
-
-	FMPAS_PropogationSettings ChildPropogationSettings;
-	ChildPropogationSettings.PropogateToParent = false;
-
-	TArray<FName> ChildPropogation;
-	GetHandler()->PropogateFromElement(ChildPropogation, RigElementName, ChildPropogationSettings);
-
-	for (auto& Element: ChildPropogation)
-		if (RigElementName != Element)
-			GetHandler()->GetRigData()[Element].RigElement->UpdateStability();	
 }
 
 

@@ -11,8 +11,7 @@
 // Constructor
 UMPAS_Leg::UMPAS_Leg()
 {
-	//PositioningMode = EMPAS_ElementPositionMode::Independent;
-	PhysicsElementsConfiguration.Add(FMPAS_PhysicsElementConfiguration());
+	AlwaysSyncBoneTransform = false;
 }
 
 
@@ -60,6 +59,10 @@ void UMPAS_Leg::InitRigElement(UMPAS_Handler* InHandler)
 	// Effector shift stack
 	EffectorShiftStackID = RegisterVectorStack("EffectorShift");
 
+	// Bone Transform Sync
+	BoneTransformSync_LocationLayerID = RegisterVectorLayer(0, "BoneTransformSync", EMPAS_LayerBlendingMode::Add, EMPAS_LayerCombinationMode::Add, 1.f, BoneTransformSyncingLayerPriority);
+	BoneTransformSync_RotationLayerID = RegisterRotationLayer(0, "BoneTransformSync", EMPAS_LayerBlendingMode::Add, 1.f, BoneTransformSyncingLayerPriority);
+
 
 	// Intention Driven Parameters
 	if (!InHandler->IsFloatParameterValid("INTENTION_LEGS_StepLengthMultiplier"))
@@ -93,13 +96,10 @@ void UMPAS_Leg::LinkRigElement(class UMPAS_Handler* InHandler)
 	LegTargetOffset = GetComponentLocation() - ParentElement->GetComponentLocation();
 
 	// Registers the effector layer
-	LegEffectorLayerID = ParentElement->RegisterVectorLayer(0, "LegsLocationEffector", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Average);
+	LegEffectorLayerID = ParentElement->RegisterVectorLayer(0, "LegsLocationEffector", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Average, 1.f, EffectorLayerPriority);
 
 	// Get resting pose offset
 	LegRestingPoseOffset = GetComponentLocation() - ParentElement->GetComponentLocation();
-
-	// Stability effector registration
-	ParentElement->SetStabilityEffectorValue(this, 1.f);
 
 	ParentBody = Cast<UMPAS_BodySegment>(ParentElement);
 
@@ -107,12 +107,12 @@ void UMPAS_Leg::LinkRigElement(class UMPAS_Handler* InHandler)
 	FVector TraceResult = FootTrace(ParentElement->GetComponentLocation() + ParentElement->GetComponentRotation().RotateVector(LegRestingPoseOffset));
 	if (TraceResult != FVector(0, 0, 0))
 	{
-		SetRigElementActive(true);
+		ValidPlacement = true;
 		SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, TraceResult);
 	}
 
 	else
-		ParentElement->SetStabilityEffectorValue(this, 0.f);
+		ValidPlacement = false;
 }
 
 
@@ -123,24 +123,21 @@ void UMPAS_Leg::UpdateRigElement(float DeltaTime)
 
 	if (!ParentElement) return;
 
-	if (FootBone != FName())
-		Handler->SetBoneTransform(FootBone, GetComponentTransform());
+	/*if (FootBone != FName())
+		Handler->SetBoneTransform(FootBone, GetComponentTransform());*/
 
-	if (!GetPhysicsModelEnabled())
+	// Actual leg update
+
+	if (!IsMoving && !IsReadyToStep())
+		ReadyToStep = ShouldStep();
+
+	if (!IsMoving && !WaitingOnLegGroup && IsReadyToStep())
 	{
-		// Actual leg update
+		if (Handler->GetIntParameter("CurrentLegGroup") == LegGroup && !HasMovedInCurrentWindow)
+			StartStepAnimation();
 
-		if (!IsMoving && !IsReadyToStep())
-			ReadyToStep = ShouldStep();
-
-		if (!IsMoving && !WaitingOnLegGroup && IsReadyToStep())
-		{
-			if (Handler->GetIntParameter("CurrentLegGroup") == LegGroup && !HasMovedInCurrentWindow)
-				StartStepAnimation();
-
-			else
-				WaitingOnLegGroup = true;
-		}
+		else
+			WaitingOnLegGroup = true;
 	}
 
 	// If element is active 
@@ -152,29 +149,21 @@ void UMPAS_Leg::UpdateRigElement(float DeltaTime)
 
 		ParentElement->SetVectorSourceValue(0, LegEffectorLayerID, this, GetComponentLocation() + ParentElement->GetComponentQuat().RotateVector(LocalLimitedRealEffectorShift));
 	}
+}
 
-	else if (GetStabilityStatus() == EMPAS_StabilityStatus::Stable)
+// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
+void UMPAS_Leg::SyncToFetchedBoneTransforms()
+{
+	const FTransform* FetchedBoneTransform = GetHandler()->GetCachedFetchedBoneTransforms().Find(FootBone);
+	if (FetchedBoneTransform)
 	{
-		SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, ParentElement->GetComponentLocation() + ParentElement->GetComponentRotation().RotateVector(LegRestingPoseOffset) + InactiveOffset);
+		FVector NewLocation = (*FetchedBoneTransform).GetLocation();
 
-		FVector TraceResult = FootTrace(ParentElement->GetComponentLocation() +  ParentElement->GetComponentRotation().RotateVector(LegRestingPoseOffset));
-		if (TraceResult != FVector(0, 0, 0))
-		{
-			SetRigElementActive(true);
-			SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, TraceResult);
-			ParentElement->SetStabilityEffectorValue(this, 1.f);
-		}
-	}
+		FVector FootTraceLocation = FootTrace(NewLocation);
+		if (FootTraceLocation != FVector::Zero())
+			NewLocation = FootTraceLocation;
 
-	else
-	{
-		FVector TraceResult = FootTrace(GetComponentLocation() + GetUpVector() * MaxFootElevation);
-		if (TraceResult != FVector(0, 0, 0))
-		{
-			SetRigElementActive(true);
-			SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, TraceResult);
-			ParentElement->SetStabilityEffectorValue(this, 1.f);
-		}
+		SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, NewLocation);
 	}
 }
 
@@ -186,7 +175,6 @@ FVector UMPAS_Leg::GetTargetLocation()
 	if (ParentBody)
 		SetVectorSourceValue(LegTargetLocationStackID, 0, this, ParentBody->GetDesiredRotation().RotateVector(GetLegTargetOffset()) + ParentBody->GetDesiredLocation());
 
-	//(ParentElement->GetComponentRotation().RotateVector(LegTargetOffset) + ParentElement->GetComponentLocation())
 	return CalculateVectorStackValue(LegTargetLocationStackID);
 }
 
@@ -268,20 +256,18 @@ void UMPAS_Leg::StartStepAnimation()
 
 	if (StepAnimationTargetLocation == FVector(0, 0, 0))
 	{
-		SetRigElementActive(false);
-		ParentElement->RemoveVectorSourceValue(0, LegEffectorLayerID, this);
-		ParentElement->SetStabilityEffectorValue(this, 0.f);
+		ValidPlacement = false;
+		//ParentElement->RemoveVectorSourceValue(0, LegEffectorLayerID, this);
 	}
 
 	else
 	{
-		SetRigElementActive(true);
+		ValidPlacement = true;
 		GetHandler()->SetIntParameter("CurrentlyMovingLegsCount", GetHandler()->GetIntParameter("CurrentlyMovingLegsCount") + 1);
 		GetHandler()->TimerController->SetTimelinePlaybackSpeed(StepTimelineName, AnimationSpeedMultiplier * SpeedMultiplier);
 		GetHandler()->TimerController->StartTimeline(StepTimelineName);
 		IsMoving = true;
 		HasMovedInCurrentWindow = true;
-		ParentElement->SetStabilityEffectorValue(this, 1.f);
 	}
 }
 
@@ -343,14 +329,6 @@ void UMPAS_Leg::OnStepAnimationTimelineNotify(FName InTimelineName, FName InNoti
 		}
 	}
 }
-
-
-void UMPAS_Leg::OnPhysicsModelDisabled_Implementation()
-{
-	if (PhysicsElements.IsValidIndex(0))
-		if(PhysicsElements[0])
-			SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, PhysicsElements[0]->GetComponentLocation());
-}	
 
 
 // Offset in time from the end of the step animation, when the leg group assumes the step to be finished

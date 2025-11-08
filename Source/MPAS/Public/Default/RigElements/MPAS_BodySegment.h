@@ -28,6 +28,11 @@ protected:
 	FRotator CachedDesiredRotation;
 
 
+	// Bone Transform Syncing
+	int32 BoneTransformSync_LocationLayerID;
+	int32 BoneTransformSync_RotationLayerID;
+
+
 public:
 	UMPAS_BodySegment();
 
@@ -41,6 +46,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Orientation")
 	float LiniarRotationInterpolationSpeed = 3.f;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Orientation")
+	FRotator AdditionalBoneRotation = FRotator::ZeroRotator;
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|PositionDriving")
 	float DesiredLocationEnforcement = 1.f;
 
@@ -50,6 +58,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|PositionDriving")
 	float DesiredRotationEnforcement = 1.f;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Advanced")
+	int32 BoneTransformSyncingLayerPriority = 1;
+
 public:
 	// CALLED BY THE HANDLER : Initializing Rig Element
 	virtual void InitRigElement(class UMPAS_Handler* InHandler) override;
@@ -57,13 +68,25 @@ public:
 	// CALLED BY THE HANDLER :  Updating Rig Element every tick
 	virtual void UpdateRigElement(float DeltaTime) override;
 
+	// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
+	virtual void SyncToFetchedBoneTransforms() override;
+
+
+	// Return Additional Rotation value
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|BodySegment")
+	const FRotator& GetAdditionalBoneRotation() { return AdditionalBoneRotation; }
+
+	// Modifies Additional Rotation value
+	UFUNCTION(BlueprintCallable, Category = "MPAS|BodySegment")
+	void SetAdditionalBoneRotation(const FRotator& InRotation) { AdditionalBoneRotation = InRotation; };
+
 
 	// Returns the location, where the body needs to be placed
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|BodySegment")
-	FVector GetDesiredLocation() { return CachedDesiredLocation; }
+	const FVector& GetDesiredLocation() { return CachedDesiredLocation; }
 
 	// Returns the rotation, by which the body needs to be rotated
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|BodySegment")
-	FRotator GetDesiredRotation() { return CachedDesiredRotation; }
+	const FRotator& GetDesiredRotation() { return CachedDesiredRotation; }
 
 };
