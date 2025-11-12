@@ -44,6 +44,7 @@ void UMPAS_BodySegment::UpdateRigElement(float DeltaTime)
 {
     Super::UpdateRigElement(DeltaTime);
 
+    // Calculating Applied Bone Transform
     if (BoneName != FName())
     {
         FTransform BoneTransform = GetComponentTransform();
@@ -53,6 +54,7 @@ void UMPAS_BodySegment::UpdateRigElement(float DeltaTime)
         Handler->SetBoneTransform(BoneName, BoneTransform);
     }
 
+    // Processing UseCoreRotation option
     if (UseCoreRotation)
     {
         FRotator CurrentSelfRotation = GetRotationSourceValue(0, 1, this);
@@ -94,15 +96,41 @@ void UMPAS_BodySegment::UpdateRigElement(float DeltaTime)
 }
 
 // CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
-void UMPAS_BodySegment::SyncToFetchedBoneTransforms()
+void UMPAS_BodySegment::SyncToFetchedBoneTransforms(float DeltaTime)
 {
     const FTransform* FetchedBoneTransform = GetHandler()->GetCachedFetchedBoneTransforms().Find(BoneName);
 	if (FetchedBoneTransform)
 	{
 		FVector DeltaLocation = (*FetchedBoneTransform).GetLocation() - GetComponentLocation();
-		FRotator DeltaRotator = UKismetMathLibrary::NormalizedDeltaRotator(((*FetchedBoneTransform).GetRotation() * AdditionalBoneRotation.Quaternion().Inverse()).Rotator(), GetComponentRotation());
+		FQuat DeltaRotator = UKismetMathLibrary::NormalizedDeltaRotator(((*FetchedBoneTransform).GetRotation() * AdditionalBoneRotation.Quaternion().Inverse()).Rotator(), GetComponentRotation()).Quaternion();
 
-		SetVectorSourceValue(0, BoneTransformSync_LocationLayerID, this, DeltaLocation);
-		SetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this, DeltaRotator);
+		// Checking if deltas are large enough to consider transform modified
+        if (    DeltaLocation.Size() > BoneTransformSync_LocationDeltaSensitivityThreshold
+            &&  acos(DeltaRotator.Vector().Dot(FVector::UnitX())) > BoneTransformSync_AngularDeltaSensitivityThreshold)
+        {
+            // Resetting timeout timer
+            BoneTransformSync_Timer = BoneTransformSync_Timeout;
+
+            // Updating applied bone transform offsets
+            BoneTransformSync_AppliedBoneLocationOffset = DeltaLocation;
+            BoneTransformSync_AppliedBoneAngularOffset = DeltaRotator;
+        }
+
+        // Counting down the timer if bone transform was not modifed
+        else if (BoneTransformSync_Timer > 0) BoneTransformSync_Timer -= DeltaTime;
+
+        // Offset realocation
+        if (BoneTransformSync_Timer <= 0)
+        {
+            FVector CurrentSyncOffset = GetVectorSourceValue(0, BoneTransformSync_LocationLayerID, this);
+            FQuat CurrentSyncAngle = GetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this).Quaternion();
+
+            // TO DO : IMPLEMENT REALOCATION
+            FVector NewSyncOffset;
+            FQuat NewSyncAngle;
+
+            SetVectorSourceValue(0, BoneTransformSync_LocationLayerID, this, NewSyncOffset);
+            SetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this, NewSyncAngle.Rotator());
+        }
 	}
 }
