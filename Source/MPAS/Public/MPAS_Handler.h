@@ -235,7 +235,7 @@ protected:
 	void AutoFetchBoneTransforms();
 
 	// Synchronizes rig elements to the most recently fetched bone transforms
-	void SyncBoneTransforms();
+	void SyncBoneTransforms(float DeltaTime);
 
 public:
 

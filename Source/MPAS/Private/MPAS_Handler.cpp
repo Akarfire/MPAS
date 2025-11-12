@@ -58,7 +58,7 @@ void UMPAS_Handler::TickComponent(float DeltaTime, ELevelTick TickType, FActorCo
 		AutoFetchBoneTransforms();
 
 	// Synchronizing rig elements with the fetched bone transforms
-	SyncBoneTransforms();
+	SyncBoneTransforms(DeltaTime);
 
 	// Updates rig every tick
 	UpdateRig(DeltaTime);
@@ -281,7 +281,7 @@ void UMPAS_Handler::AutoFetchBoneTransforms()
 }
 
 // Synchronizes rig elements to the most recently fetched bone transforms
-void UMPAS_Handler::SyncBoneTransforms()
+void UMPAS_Handler::SyncBoneTransforms(float DeltaTime)
 {
 	// Calculating fetched bone transform deltas
 	for (auto& BoneToNewTransform : FetchedBoneTransforms)
@@ -301,7 +301,7 @@ void UMPAS_Handler::SyncBoneTransforms()
 	// Calling SyncToFetchedBoneTransforms on rig elements
 	for (auto& RigElementData : RigData)
 		if (RigElementData.Value.RigElement->AlwaysSyncBoneTransform || ForceSyncBoneTransforms)
-			RigElementData.Value.RigElement->SyncToFetchedBoneTransforms();
+			RigElementData.Value.RigElement->SyncToFetchedBoneTransforms(DeltaTime);
 
 	ForceSyncBoneTransforms = false;
 }
