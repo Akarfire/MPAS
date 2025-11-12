@@ -271,14 +271,6 @@ public:
 
 
 // BONE TRANSFORM SYNC
-private:
-
-	// Counts time after the latest change in fetched bone transform deltas before offset realocation shall start
-	float BoneTransformSync_Timer;
-
-	// Smoothly transfers bone transform offsets into actual rig element transform (Should be implemeted uniquly rig elements)
-	virtual void RealocateBoneTransformOffsetsTick(float DeltaTime) { OnRealocateBoneTransformOffsetsTick(DeltaTime); }
-
 public:
 
 	// Whether this element should always be synchronized with fetched bone transforms
@@ -286,24 +278,6 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
 	bool AlwaysSyncBoneTransform = true;
 
-	// Mimiimal fetched transform location delta size that is considered "modifed"
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
-	float BoneTransformSync_LocationDeltaSensitivityThreshold = 2.f;
-
-	// Mimiimal fetched transform rotation delta size that is considered "modifed"
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
-	float BoneTransformSync_AngularDeltaSensitivityThreshold = 1.f;
-
-	// The ammount of time that needs to pass after the latest change in fetched bone transform deltas before offset realocation will start
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
-	float BoneTransformSync_Timeout = 1.f;
-
-
-	// CALLED AUTOMATICALLY : Smoothly transfers bone transform offsets into actual rig element transform (Should be implemeted uniquly rig elements)
-	UFUNCTION(BlueprintNativeEvent, Category = "MPAS|RigElement|Overrides|Basic")
-	void OnRealocateBoneTransformOffsetsTick(float DeltaTime);
-	virtual void OnRealocateBoneTransformOffsetsTick_Implementation(float DeltaTime) {};
-	
 
 
 // POSITION DRIVER INTEGRATION
@@ -490,7 +464,7 @@ public:
 	virtual void UpdateRigElement(float DeltaTime);
 
 	// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
-	virtual void SyncToFetchedBoneTransforms();
+	virtual void SyncToFetchedBoneTransforms(float DeltaTime);
 
 
 	// CALLED BY THE HANDLER : Called when the rig is initialized by the handler - to be overriden in Blueprints
@@ -510,8 +484,8 @@ public:
 
 	// CALLED BY THE HANDLER : CSynchronizes Rig Element to the most recently fetched bone transforms - to be overriden in Blueprints
 	UFUNCTION(BlueprintNativeEvent, Category = "MPAS|RigElement|Overrides|Basic")
-	void OnSyncToFetchedBoneTransforms();
-	virtual void OnSyncToFetchedBoneTransforms_Implementation() {};
+	void OnSyncToFetchedBoneTransforms(float DeltaTime);
+	virtual void OnSyncToFetchedBoneTransforms_Implementation(float DeltaTime) {};
 
 
 

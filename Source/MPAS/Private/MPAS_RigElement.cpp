@@ -155,13 +155,9 @@ void UMPAS_RigElement::UpdateRigElement(float DeltaTime)
 }
 
 // CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
-void UMPAS_RigElement::SyncToFetchedBoneTransforms()
+void UMPAS_RigElement::SyncToFetchedBoneTransforms(float DeltaTime)
 {
-	// Processing combination sync mode logic
-	FTransform DeltaTransform = GetHandler()->GetCachedFetchedBoneTransformDeltas();
-	if ( Get )
-
-	OnSyncToFetchedBoneTransforms();
+	OnSyncToFetchedBoneTransforms(DeltaTime);
 }
 
 
