@@ -219,6 +219,9 @@ protected:
 	// (or any other mesh, specified during manual fetch)
 	TMap<FName, FTransform> FetchedBoneTransforms;
 
+	// Difference between bone transform applied on the last update and the newly fetched bone transforms
+	TMap<FName, FTransform> FetchedBoneTransformDeltas;
+
 	// Skeletal mesh component, from which autonomous bone transform fetching is performed
 	USkeletalMeshComponent* AutoBoneTransformFetchMesh;
 
@@ -274,6 +277,10 @@ public:
 	// (or any other mesh, specified during manual fetch)
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|BoneTransformFetching")
 	const TMap<FName, FTransform>& GetCachedFetchedBoneTransforms() { return FetchedBoneTransforms; }
+
+	// Difference between bone transform applied on the last update and the newly fetched bone transforms
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|BoneTransformFetching")
+	const TMap<FName, FTransform>& GetCachedFetchedBoneTransformDeltas() { return FetchedBoneTransformDeltas; }
 
 	// Skeletal mesh component, from which autonomous bone transform fetching is performed
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|BoneTransformFetching")

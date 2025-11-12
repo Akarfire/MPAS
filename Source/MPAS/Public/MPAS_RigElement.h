@@ -233,11 +233,6 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Orientation")
 	float RotationInterpolationSpeed = 0.f;
 
-	// Whether this element should always be synchronized with fetched bone transforms
-	// If set to false, bone transform sync will only happen during Force Synchronization
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
-	bool AlwaysSyncBoneTransform = true;
-
 
 protected:
 	// Called when the game starts
@@ -273,6 +268,42 @@ public:
 	UFUNCTION(BlueprintPure, BlueprintCallable, Category="MPAS|RigElement")
 	FVector GetVelocity() { return CachedVelocity; }
 
+
+
+// BONE TRANSFORM SYNC
+private:
+
+	// Counts time after the latest change in fetched bone transform deltas before offset realocation shall start
+	float BoneTransformSync_Timer;
+
+	// Smoothly transfers bone transform offsets into actual rig element transform (Should be implemeted uniquly rig elements)
+	virtual void RealocateBoneTransformOffsetsTick(float DeltaTime) { OnRealocateBoneTransformOffsetsTick(DeltaTime); }
+
+public:
+
+	// Whether this element should always be synchronized with fetched bone transforms
+	// If set to false, bone transform sync will only happen during Force Synchronization
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	bool AlwaysSyncBoneTransform = true;
+
+	// Mimiimal fetched transform location delta size that is considered "modifed"
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	float BoneTransformSync_LocationDeltaSensitivityThreshold = 2.f;
+
+	// Mimiimal fetched transform rotation delta size that is considered "modifed"
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	float BoneTransformSync_AngularDeltaSensitivityThreshold = 1.f;
+
+	// The ammount of time that needs to pass after the latest change in fetched bone transform deltas before offset realocation will start
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	float BoneTransformSync_Timeout = 1.f;
+
+
+	// CALLED AUTOMATICALLY : Smoothly transfers bone transform offsets into actual rig element transform (Should be implemeted uniquly rig elements)
+	UFUNCTION(BlueprintNativeEvent, Category = "MPAS|RigElement|Overrides|Basic")
+	void OnRealocateBoneTransformOffsetsTick(float DeltaTime);
+	virtual void OnRealocateBoneTransformOffsetsTick_Implementation(float DeltaTime) {};
+	
 
 
 // POSITION DRIVER INTEGRATION

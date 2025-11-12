@@ -6,6 +6,7 @@
 #include "MPAS_RigElement.h"
 #include "Default/RigElements/MPAS_VoidRigElement.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetMathLibrary.h"
 #include "Default/RigElements/PositionDrivers/MPAS_PositionDriver.h"
 
 
@@ -282,6 +283,22 @@ void UMPAS_Handler::AutoFetchBoneTransforms()
 // Synchronizes rig elements to the most recently fetched bone transforms
 void UMPAS_Handler::SyncBoneTransforms()
 {
+	// Calculating fetched bone transform deltas
+	for (auto& BoneToNewTransform : FetchedBoneTransforms)
+	{
+		FTransform* BoneTransformData = BoneTransforms.Find(BoneToNewTransform.Key);
+		if (BoneTransformData)
+		{
+			FTransform DeltaTransform;
+			DeltaTransform.SetLocation(BoneToNewTransform.Value.GetLocation() - BoneTransformData->GetLocation());
+			DeltaTransform.SetRotation(UKismetMathLibrary::NormalizedDeltaRotator(	BoneToNewTransform.Value.GetRotation().Rotator(), 
+																					BoneTransformData->GetRotation().Rotator()).Quaternion());
+
+			FetchedBoneTransformDeltas.Add({ BoneToNewTransform.Key, DeltaTransform });
+		}
+	}
+
+	// Calling SyncToFetchedBoneTransforms on rig elements
 	for (auto& RigElementData : RigData)
 		if (RigElementData.Value.RigElement->AlwaysSyncBoneTransform || ForceSyncBoneTransforms)
 			RigElementData.Value.RigElement->SyncToFetchedBoneTransforms();
