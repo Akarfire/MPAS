@@ -348,7 +348,11 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|VectorStacks")
 	const FVector& GetVectorSourceValue(int32 InVectorStackID, int32 InVectorLayerID, UMPAS_RigElement* InSourceElement)
 	{
-		return VectorStacks[InVectorStackID][InVectorLayerID].LayerElements[InSourceElement];
+		FVector* ValueP = VectorStacks[InVectorStackID][InVectorLayerID].LayerElements.Find(InSourceElement);
+		if (ValueP)
+			return *ValueP;
+
+		return FVector::ZeroVector;
 	}
 
 
@@ -425,7 +429,11 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|RotationStacks")
 	FRotator GetRotationSourceValue(int32 InRotationStackID, int32 InRotationLayerID, UMPAS_RigElement* InSourceElement)
 	{
-		return RotationStacks[InRotationStackID][InRotationLayerID].LayerElements[InSourceElement];
+		FRotator* ValueP = RotationStacks[InRotationStackID][InRotationLayerID].LayerElements.Find(InSourceElement);
+		if (ValueP)
+			return *ValueP;
+
+		return FRotator::ZeroRotator;
 	}
 
 
