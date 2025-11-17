@@ -280,7 +280,7 @@ protected:
 
 	// Total lenght of all limb segments
 	float MaxExtent;
-	
+
 
 
 // INTERFACE
@@ -388,7 +388,7 @@ protected:
 	virtual void UpdateRigElement(float DeltaTime) override;
 
 	// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
-	virtual void SyncToFetchedBoneTransforms() override;
+	virtual void SyncToFetchedBoneTransforms(float DeltaTime) override;
 
 
 	// Math/Utilities

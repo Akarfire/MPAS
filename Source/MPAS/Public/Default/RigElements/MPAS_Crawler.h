@@ -115,8 +115,54 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Elements|Leg")
 	int32 GetEffectorShiftStackID() { return EffectorShiftStackID; }
 
-	
-	// CALLED BY THE HANDLER
+
+// BONE TRANSFORM SYNCING
+protected:
+
+	// Bone Transform Syncing
+	int32 BoneTransformSync_LocationLayerID;
+	int32 BoneTransformSync_RotationLayerID;
+
+	// Counts time after the latest change in fetched bone transform deltas before offset realocation shall start
+	float BoneTransformSync_Timer;
+
+	FVector BoneTransformSync_AppliedBoneLocationOffset = FVector::ZeroVector;
+	FQuat BoneTransformSync_AppliedBoneAngularOffset = FQuat::Identity;
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	FName BoneName = FName();
+
+	// Priority of "BoneTransformSync" layers in default location and default rotation stacks
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	int32 BoneTransformSyncingLayerPriority = 1;
+
+
+	// Mimiimal fetched transform location delta size that is considered "modifed"
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	float BoneTransformSync_LocationDeltaSensitivityThreshold = 2.f;
+
+	// Mimiimal fetched transform rotation delta size that is considered "modifed"
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	float BoneTransformSync_AngularDeltaSensitivityThreshold = 1.f;
+
+	// The ammount of time that needs to pass after the latest change in fetched bone transform deltas before offset realocation will start
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	float BoneTransformSync_Timeout = 1.f;
+
+	// How fast applied bone transform offsets will be transfered into bone trasnform sync layer during offset realocation 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	float BoneTransformSync_OffsetLocationRealocationSpeed = 10.f;
+
+	// How fast applied bone transform offsets will be transfered into bone trasnform sync layer during offset realocation 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	float BoneTransformSync_OffsetAngularRealocationSpeed = 10.f;
+
+
+
+// CALLED BY THE HANDLER
+public:
 	// Initializing Rig Element
 	virtual void InitRigElement(class UMPAS_Handler* InHandler) override;
 
@@ -125,4 +171,7 @@ public:
 
 	// Updating Rig Element every tick
 	virtual void UpdateRigElement(float DeltaTime) override;
+
+	// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
+	virtual void SyncToFetchedBoneTransforms(float DeltaTime) override;
 };

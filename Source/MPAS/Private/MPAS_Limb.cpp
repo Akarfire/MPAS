@@ -830,7 +830,7 @@ void UMPAS_Limb::UpdateRigElement(float DeltaTime)
 }
 
 // CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
-void UMPAS_Limb::SyncToFetchedBoneTransforms()
+void UMPAS_Limb::SyncToFetchedBoneTransforms(float DeltaTime)
 {
     for (int32 i = 0; i < Segments.Num(); i++)
     {

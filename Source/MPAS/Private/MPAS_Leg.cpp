@@ -152,18 +152,66 @@ void UMPAS_Leg::UpdateRigElement(float DeltaTime)
 }
 
 // CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
-void UMPAS_Leg::SyncToFetchedBoneTransforms()
+//void UMPAS_Leg::SyncToFetchedBoneTransforms(float DeltaTime)
+//{
+//	const FTransform* FetchedBoneTransform = GetHandler()->GetCachedFetchedBoneTransforms().Find(FootBone);
+//	if (FetchedBoneTransform)
+//	{
+//		FVector NewLocation = (*FetchedBoneTransform).GetLocation();
+//
+//		FVector FootTraceLocation = FootTrace(NewLocation);
+//		if (FootTraceLocation != FVector::Zero())
+//			NewLocation = FootTraceLocation;
+//
+//		SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, NewLocation);
+//	}
+//}
+
+// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
+void UMPAS_Leg::SyncToFetchedBoneTransforms(float DeltaTime)
 {
 	const FTransform* FetchedBoneTransform = GetHandler()->GetCachedFetchedBoneTransforms().Find(FootBone);
 	if (FetchedBoneTransform)
 	{
-		FVector NewLocation = (*FetchedBoneTransform).GetLocation();
+		FVector DeltaLocation = (*FetchedBoneTransform).GetLocation() - GetComponentLocation();
+		FQuat DeltaRotator = UKismetMathLibrary::NormalizedDeltaRotator((*FetchedBoneTransform).GetRotation().Rotator(), GetComponentRotation()).Quaternion();
 
-		FVector FootTraceLocation = FootTrace(NewLocation);
-		if (FootTraceLocation != FVector::Zero())
-			NewLocation = FootTraceLocation;
+		// Checking if deltas are large enough to consider transform modified
+		if (DeltaLocation.Size() > BoneTransformSync_LocationDeltaSensitivityThreshold
+			&& acos(DeltaRotator.Vector().Dot(FVector::UnitX())) > BoneTransformSync_AngularDeltaSensitivityThreshold)
+		{
+			// Resetting timeout timer
+			BoneTransformSync_Timer = BoneTransformSync_Timeout;
 
-		SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, NewLocation);
+			// Updating applied bone transform offsets
+			BoneTransformSync_AppliedBoneLocationOffset = DeltaLocation;
+			BoneTransformSync_AppliedBoneAngularOffset = DeltaRotator;
+		}
+
+		// Counting down the timer if bone transform was not modifed
+		else if (BoneTransformSync_Timer > 0) BoneTransformSync_Timer -= DeltaTime;
+
+		// Offset realocation
+		if (BoneTransformSync_Timer <= 0)
+		{
+			FVector CurrentSyncOffset = GetVectorSourceValue(0, BoneTransformSync_LocationLayerID, this);
+			FRotator CurrentSyncAngle = GetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this);
+
+			FVector NewSyncOffset = UKismetMathLibrary::VInterpTo(CurrentSyncOffset,
+				BoneTransformSync_AppliedBoneLocationOffset,
+				DeltaTime, BoneTransformSync_OffsetLocationRealocationSpeed);
+
+			FRotator AppliedAngularOffsetRot = BoneTransformSync_AppliedBoneAngularOffset.Rotator();
+			FRotator NewSyncAngle = UKismetMathLibrary::RInterpTo(CurrentSyncAngle,
+				AppliedAngularOffsetRot,
+				DeltaTime, BoneTransformSync_OffsetAngularRealocationSpeed);
+
+			SetVectorSourceValue(0, BoneTransformSync_LocationLayerID, this, NewSyncOffset);
+			SetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this, NewSyncAngle);
+
+			BoneTransformSync_AppliedBoneLocationOffset -= NewSyncOffset - CurrentSyncOffset;
+			BoneTransformSync_AppliedBoneAngularOffset = (AppliedAngularOffsetRot - (NewSyncAngle - CurrentSyncAngle)).Quaternion();
+		}
 	}
 }
 

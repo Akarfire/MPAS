@@ -123,14 +123,22 @@ void UMPAS_BodySegment::SyncToFetchedBoneTransforms(float DeltaTime)
         if (BoneTransformSync_Timer <= 0)
         {
             FVector CurrentSyncOffset = GetVectorSourceValue(0, BoneTransformSync_LocationLayerID, this);
-            FQuat CurrentSyncAngle = GetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this).Quaternion();
+            FRotator CurrentSyncAngle = GetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this);
 
-            // TO DO : IMPLEMENT REALOCATION
-            FVector NewSyncOffset;
-            FQuat NewSyncAngle;
+            FVector NewSyncOffset = UKismetMathLibrary::VInterpTo(  CurrentSyncOffset, 
+                                                                    BoneTransformSync_AppliedBoneLocationOffset,
+                                                                    DeltaTime, BoneTransformSync_OffsetLocationRealocationSpeed);
+
+            FRotator AppliedAngularOffsetRot = BoneTransformSync_AppliedBoneAngularOffset.Rotator();
+            FRotator NewSyncAngle = UKismetMathLibrary::RInterpTo(  CurrentSyncAngle,
+                                                                    AppliedAngularOffsetRot,
+                                                                    DeltaTime, BoneTransformSync_OffsetAngularRealocationSpeed);
 
             SetVectorSourceValue(0, BoneTransformSync_LocationLayerID, this, NewSyncOffset);
-            SetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this, NewSyncAngle.Rotator());
+            SetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this, NewSyncAngle);
+
+            BoneTransformSync_AppliedBoneLocationOffset -= NewSyncOffset - CurrentSyncOffset;
+            BoneTransformSync_AppliedBoneAngularOffset = (AppliedAngularOffsetRot - (NewSyncAngle - CurrentSyncAngle)).Quaternion();
         }
 	}
 }

@@ -85,8 +85,8 @@ protected:
 	// Counts time after the latest change in fetched bone transform deltas before offset realocation shall start
 	float BoneTransformSync_Timer;
 
-	FVector BoneTransformSync_AppliedBoneLocationOffset;
-	FQuat BoneTransformSync_AppliedBoneAngularOffset;
+	FVector BoneTransformSync_AppliedBoneLocationOffset = FVector::ZeroVector;
+	FQuat BoneTransformSync_AppliedBoneAngularOffset = FQuat::Identity;
 
 public:
 	// Priority of "BoneTransformSync" layers in default location and default rotation stacks
@@ -108,7 +108,11 @@ public:
 
 	// How fast applied bone transform offsets will be transfered into bone trasnform sync layer during offset realocation 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
-	float BoneTransformSync_OffsetRealocationSpeed = 10.f;
+	float BoneTransformSync_OffsetLocationRealocationSpeed = 10.f;
+
+	// How fast applied bone transform offsets will be transfered into bone trasnform sync layer during offset realocation 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	float BoneTransformSync_OffsetAngularRealocationSpeed = 10.f;
 
 
 
