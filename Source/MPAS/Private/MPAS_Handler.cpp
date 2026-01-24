@@ -68,7 +68,7 @@ void UMPAS_Handler::TickComponent(float DeltaTime, ELevelTick TickType, FActorCo
 }
 
 
-// Scans the rig and filss Core and Rig Data
+// Scans the rig and fills Core and Rig Data
 void UMPAS_Handler::ScanRig()
 {
 	// Finding Core
@@ -88,6 +88,7 @@ void UMPAS_Handler::ScanRig()
 				ScanElement(RigElement, "Core");
 		}		
 	}
+	else UE_LOG(LogTemp, Error, TEXT("No MPAS_Core component detected!"));
 }
 
 
@@ -435,25 +436,25 @@ void UMPAS_Handler::SubscribeToParameter(FName ParameterName, UObject* Subscribe
 
 
 
-// PROPOGATION
+// PROPAGATION
 
 // Recursive function, processing a single rig element and calling itself on adjacent elements
-void UMPAS_Handler::Propogation_ProcessElement(TArray<FName>& OutPropogation, const FName& InElement, const FMPAS_PropogationSettings& InPropogationSettings, int32 InCurrentDepth)
+void UMPAS_Handler::Propagation_ProcessElement(TArray<FName>& OutPropagation, const FName& InElement, const FMPAS_PropagationSettings& InPropagationSettings, int32 InCurrentDepth)
 {
 
 	// Depth check
-	if (InPropogationSettings.Depth != 0 && InCurrentDepth > InPropogationSettings.Depth)
+	if (InPropagationSettings.Depth != 0 && InCurrentDepth > InPropagationSettings.Depth)
 		return;
 
 	// Filter
 	// If the element does not pass, then the function will return
-	if (InPropogationSettings.EnableTagFilter)
+	if (InPropagationSettings.EnableTagFilter)
 	{
 		// If filter is in black list mode
-		if (InPropogationSettings.FilterBlackListMode)
+		if (InPropagationSettings.FilterBlackListMode)
 		{
 			bool BlackListed = false;
-			for (auto& Tag: InPropogationSettings.TagFilter)
+			for (auto& Tag: InPropagationSettings.TagFilter)
 				if (RigData[InElement].RigElement->ComponentHasTag(Tag))
 				{
 					BlackListed = true;
@@ -468,7 +469,7 @@ void UMPAS_Handler::Propogation_ProcessElement(TArray<FName>& OutPropogation, co
 		else
 		{
 			bool WhiteListed = false;
-			for (auto& Tag: InPropogationSettings.TagFilter)
+			for (auto& Tag: InPropagationSettings.TagFilter)
 				if (RigData[InElement].RigElement->ComponentHasTag(Tag))
 				{
 					WhiteListed = true;
@@ -482,25 +483,25 @@ void UMPAS_Handler::Propogation_ProcessElement(TArray<FName>& OutPropogation, co
 
 	// If the element wasn't filtered, then process it
 
-	OutPropogation.Add(InElement);
+	OutPropagation.Add(InElement);
 
-	if (InPropogationSettings.PropogateToChildren)
+	if (InPropagationSettings.PropogateToChildren)
 		for (auto& Child: RigData[InElement].ChildElements)
-			Propogation_ProcessElement(OutPropogation, Child, InPropogationSettings, InCurrentDepth + 1);
+			Propagation_ProcessElement(OutPropagation, Child, InPropagationSettings, InCurrentDepth + 1);
 
-	if (InPropogationSettings.PropogateToParent && RigData[InElement].ParentComponent != "Core")
-		Propogation_ProcessElement(OutPropogation, RigData[InElement].ParentComponent, InPropogationSettings, InCurrentDepth + 1);
+	if (InPropagationSettings.PropogateToParent && RigData[InElement].ParentComponent != "Core")
+		Propagation_ProcessElement(OutPropagation, RigData[InElement].ParentComponent, InPropagationSettings, InCurrentDepth + 1);
 }
 
 
 /*
 * Pick an element in the rig, then pick it's adjacent elements, then their adjacent elements and so on, until you rich the progopation depth
-* Upon finishing, OutPropogation array will contain all processed elements (including the starting one) in order of processing
+* Upon finishing, OutPropagation array will contain all processed elements (including the starting one) in order of processing
 */
-void UMPAS_Handler::PropogateFromElement(TArray<FName>& OutPropogation, FName InStartingElement, FMPAS_PropogationSettings InPropogationSettings)
+void UMPAS_Handler::PropogateFromElement(TArray<FName>& OutPropagation, FName InStartingElement, FMPAS_PropagationSettings InPropagationSettings)
 {
-	OutPropogation.Empty();
+	OutPropagation.Empty();
 	
 	if (RigData.Contains(InStartingElement))
-		Propogation_ProcessElement(OutPropogation, InStartingElement, InPropogationSettings, 0);
+		Propagation_ProcessElement(OutPropagation, InStartingElement, InPropagationSettings, 0);
 }

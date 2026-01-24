@@ -48,7 +48,7 @@ struct FMPAS_RigElementData
 
 
 
-/* Defines rules for a propogation call
+/* Defines rules for a propagation call
  * Default Values:
  * 		Depth: 0
  * 		PropogateToChildren: true
@@ -58,11 +58,11 @@ struct FMPAS_RigElementData
  * 		TagFilter: empty
  */
 USTRUCT(BlueprintType)
-struct FMPAS_PropogationSettings
+struct FMPAS_PropagationSettings
 {
 	GENERATED_USTRUCT_BODY()
 
-	// Propogation depth, if set to 0 the propogation will be unlimited (will cover all connected elements)
+	// Propagation depth, if set to 0 the propagation will be unlimited (will cover all connected elements)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 Depth = 0;
 
@@ -128,7 +128,7 @@ protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 
-	// Scans the rig and filss Core and Rig Data
+	// Scans the rig and fills Core and Rig Data
 	void ScanRig();
 
 	// Recursively scans Rig Element
@@ -481,24 +481,24 @@ public:
 
 
 
-/* PROPOGATION
+/* PROPAGATION
  * 
- * A set of functions that make rig element propogation easy
- * What is propogation?
- * 		Pick an element in the rig, then pick it's adjacent elements, then their adjacent elements and so on, until you rich the progopation depth
+ * A set of functions that make rig element propagation easy
+ * What is propagation?
+ * 		Pick an element in the rig, then pick it's adjacent elements, then their adjacent elements and so on, until you reach the propagation depth
  */
 
 protected:
 
 	// Recursive function, processing a single rig element and calling itself on adjacent elements
-	void Propogation_ProcessElement(TArray<FName>& OutPropogation, const FName& InElement, const FMPAS_PropogationSettings& InPropogationSettings, int32 InCurrentDepth);
+	void Propagation_ProcessElement(TArray<FName>& OutPropagation, const FName& InElement, const FMPAS_PropagationSettings& InPropagationSettings, int32 InCurrentDepth);
 
 public:
 
 	/*
 	 * Pick an element in the rig, then pick it's adjacent elements, then their adjacent elements and so on, until you rich the progopation depth
-	 * Upon finishing, OutPropogation array will contain all processed elements (including the starting one) in order of processing
+	 * Upon finishing, OutPropagation array will contain all processed elements (including the starting one) in order of processing
 	 */
-	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Propogation")
-	void PropogateFromElement(TArray<FName>& OutPropogation, FName InStartingElement, FMPAS_PropogationSettings InPropogationSettings);
+	UFUNCTION(BlueprintCallable, Category="MPAS|Handler|Propagation")
+	void PropogateFromElement(TArray<FName>& OutPropagation, FName InStartingElement, FMPAS_PropagationSettings InPropagationSettings);
 };
