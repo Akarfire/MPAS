@@ -25,6 +25,6 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category= "MPAS|Handler|IntentionDriver|IntentionStateMachine|State")
 	class UMPAS_Handler* GetHandler() { return Handler; }
 
-	// Must NEVER be called manually. Fires off after the main STATEMACHINE_OnSetStateMachine function has be called. Is used for implemention custom State base classes, derived from this one
+	// Must NEVER be called manually. Fires off after the main STATEMACHINE_OnSetStateMachine function has been called. Is used for implementing custom State base classes, derived from this one
 	virtual void STATEMACHINE_OnSetStateMachine_Implementation() override;
 };
