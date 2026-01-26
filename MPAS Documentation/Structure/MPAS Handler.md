@@ -1,4 +1,4 @@
-#Core 
+#Basic #System
 
 A central component of any MPAS rig.
 ### Functionality
@@ -21,7 +21,7 @@ Basic rig data includes:
 * `TMap<FName, FMPAS_RigElementData> RigData` - contains [Rig Structure](Rig%20Structure.md) data.
 * `TArray<FName> CoreElements` - lists all elements, that are directly attached to the core element.
 
-Structural data about a single rig element is represented by a `FMPAS_RigElementData` structure: 
+Structural data about a single [Rig Element](Rig%20Element.md) is represented by a `FMPAS_RigElementData` structure: 
 
 ```c++
 struct FMPAS_RigElementData
@@ -55,7 +55,6 @@ Rig setup procedure is started on `BeginPlay` and consists of 4 stages:
 When all 4 stages are completed, `SetupComplete` flag is set to true and `OnRigSetupComplete` is called (calls `OnRigSetupFinished` on every existing [Intention Driver](../Systems/Intention%20Driving.md)).
 
 ##### 1. *Scanning* (`ScanRig`)
-
 ```c++
 void ScanRig();
 ```
@@ -72,7 +71,6 @@ void ScanElement(class UMPAS_RigElement* RigElement, const FName& ParentElementN
 If the processed element is a `PositionDriver`, it is additionally stored in `Map<FName, class UMPAS_PositionDriver*> PositionDrivers`.
 
 ##### 2. *Initialization* (`InitRig`)
-
 ```c++
 void InitRig();
 ```
@@ -88,7 +86,6 @@ Initialization stage is meant for:
 **During initialization rig elements MUST NOT access information about other elements in the rig.**
 
 ##### 3. *Linking* (`LinkRig`)
-
 ```c++
 void LinkRig();
 ```
@@ -98,9 +95,16 @@ For each rig element stored in `RigData` calls `LinkRigElement(this)`.
 During linking stage rig elements become aware of other elements in the rig. This stage is meant for inter-element integration (registering vector/rotation layers in other rig elements, etc.).
 
 ##### 4. *Post-Linking* (`PostLinkSetupRig`)
-
 For each rig element stored in `RigData` calls `PostLinkSetupRig(this)`. This stage is meant for logic, that must happen at the end of rig setup process.
 
+### Rig Update
+
+Every component tick MPAS Handler performs the *Update* procedure, that includes multiple stages:
+#### 1. *Rig Update*
+Loops over all Rig Elements and calls `UpdateRigElement` on them.
+
+#### 2. *Intention Driver Update*
+Loops over all [Intention Drivers](../Systems/Intention%20Driving.md) and calls `UpdateStateMachine` on them if they are *Active*.
 
 ### Bone Transforms
 [Applying To Meshes](../Systems/Applying%20To%20Meshes.md)
