@@ -110,11 +110,10 @@ void UMPAS_Limb::InitLimb()
             // Fetching origin position if needed
             if (Fetch_OriginPosition)
             {
-                bool HasActiveElements = false;
-                FVector ParentLocation = CalculateVectorLayerValue(VectorStacks[0][0], HasActiveElements);
+                FVector ParentLocation = UStacksAndLayers::CalculateLayer_Vector(GetVectorStack(0)[0]);
                 FVector NewSelfLocation = CurrentState[0].Location - ParentLocation;
 
-                SetVectorSourceValue(0, 1, this, NewSelfLocation);
+                GetVectorStack(0)[1].SetSourceValue(this, NewSelfLocation);
             }
 
             Initialized = true;
@@ -316,7 +315,7 @@ FVector UMPAS_Limb::CalculatePoleTargetLocation(const FMPAS_LimbPoleTarget& InPo
     // Location stack mode
     if (InPoleTargetSettings.LocationMode == EMPAS_LimbPoleTargetLocationMode::PoleTargetLocationStack)
     {
-        return CalculateVectorStackValue(InPoleTargetSettings.STACK_VectorStackID);
+        return UStacksAndLayers::CalculateStack_Vector(GetVectorStack(InPoleTargetSettings.STACK_VectorStackID));
     }
 
     return FVector::Zero();
@@ -732,7 +731,7 @@ FVector UMPAS_Limb::GetLimbTarget()
         break;
 
     case EMPAS_LimbTargetType::TargetVectorStack:
-        Target = CalculateVectorStackValue(TargetStackID);
+        Target = UStacksAndLayers::CalculateStack_Vector(GetVectorStack(TargetStackID));
         break;
         
     default: break;
@@ -761,15 +760,12 @@ void UMPAS_Limb::OverrideAttachmentParent(UMPAS_RigElement* NewParent)
 {
     if (NewParent)
     {
-        SetVectorSourceValue(0, 0, ParentElement, FVector::ZeroVector);
-        SetRotationSourceValue(0, 0, ParentElement, FRotator::ZeroRotator);
-
         ParentElement = NewParent;
         FName ParentElementName = ParentElement->RigElementName;
 
         // Parent location and rotation initial cache
-        SetVectorSourceValue(0, 0, ParentElement, ParentElement->GetComponentLocation());
-        SetRotationSourceValue(0, 0, ParentElement, ParentElement->GetComponentRotation());
+        GetVectorStack(0)[0].SetSourceValue(ParentElement, ParentElement->GetComponentLocation());
+        GetRotatorStack(0)[0].SetSourceValue(ParentElement, ParentElement->GetComponentRotation());
 
         // Self location and rotation fetching
 
@@ -777,8 +773,14 @@ void UMPAS_Limb::OverrideAttachmentParent(UMPAS_RigElement* NewParent)
         InitialSelfTransform.SetLocation(UKismetMathLibrary::Quat_UnrotateVector(ParentElement->GetComponentRotation().Quaternion(), GetComponentLocation() - ParentElement->GetComponentLocation()));
         InitialSelfTransform.SetRotation(UKismetMathLibrary::NormalizedDeltaRotator(GetComponentRotation(), ParentElement->GetComponentRotation()).Quaternion());
 
-        SetVectorSourceValue(0, 1, this, UKismetMathLibrary::Quat_RotateVector(ParentElement->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()));
-        SetRotationSourceValue(0, 1, this, FRotator(InitialSelfTransform.GetRotation()));
+        GetVectorStack(0)[1].SetSourceValue(this, UKismetMathLibrary::Quat_RotateVector(ParentElement->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()));
+        GetRotatorStack(0)[1].SetSourceValue(this, FRotator(InitialSelfTransform.GetRotation()));
+    }
+
+    else
+    {
+        GetVectorStack(0)[0].SetSourceValue(ParentElement, FVector::ZeroVector);
+        GetRotatorStack(0)[0].SetSourceValue(ParentElement, FRotator::ZeroRotator);
     }
 }
 
@@ -796,7 +798,7 @@ void UMPAS_Limb::InitRigElement(class UMPAS_Handler* InHandler)
 
     for (auto& Pole: PoleTargets)
         if (Pole.Value.LocationMode == EMPAS_LimbPoleTargetLocationMode::PoleTargetLocationStack)
-            Pole.Value.STACK_VectorStackID = RegisterVectorStack("PoleTarget_" + UKismetStringLibrary::Conv_IntToString(Pole.Key));
+            Pole.Value.STACK_VectorStackID = RegisterVectorStack(FName("PoleTarget_" + UKismetStringLibrary::Conv_IntToString(Pole.Key)));
 
     InitLimb();
 }

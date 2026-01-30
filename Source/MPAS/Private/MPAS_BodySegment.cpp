@@ -22,21 +22,20 @@ void UMPAS_BodySegment::InitRigElement(class UMPAS_Handler* InHandler)
     // Registering desired transform stacks and layers + setiing core offset values
 
     DesiredLocationStackID = RegisterVectorStack("DesiredLocation");
-    RegisterVectorLayer(DesiredLocationStackID, "Core", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add);
-    RegisterVectorLayer(DesiredLocationStackID, "OffsetFromCore", EMPAS_LayerBlendingMode::Add, EMPAS_LayerCombinationMode::Add);
-    
-    SetVectorSourceValue(DesiredLocationStackID, 1, this, GetComponentLocation() - InHandler->GetCore()->GetComponentLocation());
+    RegisterVectorLayer(DesiredLocationStackID, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Add, 0, false, "Core"));
+    RegisterVectorLayer(DesiredLocationStackID, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Add, 1.f, EMPAS_LayerCombinationMode::Add, 0, false, "OffsetFromCore"));
 
+    GetVectorStack(DesiredLocationStackID)[1].SetSourceValue(this, GetComponentLocation() - InHandler->GetCore()->GetComponentLocation());
 
-    DesiredRotationStackID = RegisterRotationStack("DesiredRotation");
-    RegisterRotationLayer(DesiredRotationStackID, "Core", EMPAS_LayerBlendingMode::Normal);
-    RegisterRotationLayer(DesiredRotationStackID, "OffsetFromCore", EMPAS_LayerBlendingMode::Add);
+    DesiredRotationStackID = RegisterRotatorStack("DesiredRotation");
+    RegisterRotatorLayer(DesiredRotationStackID, FMPAS_RotatorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Add, 0, false, "Core"));
+    RegisterRotatorLayer(DesiredLocationStackID, FMPAS_RotatorLayer(EMPAS_LayerBlendingMode::Add, 1.f, EMPAS_LayerCombinationMode::Add, 0, false, "OffsetFromCore"));
 
-    SetRotationSourceValue(DesiredRotationStackID, 1, this, GetComponentRotation() - InHandler->GetCore()->GetComponentRotation());
+    GetRotatorStack(DesiredRotationStackID)[1].SetSourceValue(this, GetComponentRotation() - InHandler->GetCore()->GetComponentRotation());
 
     // Bone Transform Sync
-    BoneTransformSync_LocationLayerID = RegisterVectorLayer(0, "BoneTransformSync", EMPAS_LayerBlendingMode::Add, EMPAS_LayerCombinationMode::Add, 1.f, BoneTransformSyncingLayerPriority);
-    BoneTransformSync_RotationLayerID = RegisterRotationLayer(0, "BoneTransformSync", EMPAS_LayerBlendingMode::Add, 1.f, BoneTransformSyncingLayerPriority);
+    BoneTransformSync_LocationLayerID = RegisterVectorLayer(0, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Add, 1.f, EMPAS_LayerCombinationMode::Add, BoneTransformSyncingLayerPriority, false, "BoneTransformSync"));
+    BoneTransformSync_RotationLayerID = RegisterRotatorLayer(0, FMPAS_RotatorLayer(EMPAS_LayerBlendingMode::Add, 1.f, EMPAS_LayerCombinationMode::Add, BoneTransformSyncingLayerPriority, false, "BoneTransformSync"));
 }
 
 // CALLED BY THE HANDLER :  Updating Rig Element every tick
@@ -57,21 +56,22 @@ void UMPAS_BodySegment::UpdateRigElement(float DeltaTime)
     // Processing UseCoreRotation option
     if (UseCoreRotation)
     {
-        FRotator CurrentSelfRotation = GetRotationSourceValue(0, 1, this);
+        FRotator CurrentSelfRotation = GetRotatorStack(0)[1].GetSourceValue(this);
         FRotator NewRotation = UKismetMathLibrary::RInterpTo_Constant(CurrentSelfRotation, GetHandler()->GetCore()->GetComponentRotation(), DeltaTime, LiniarRotationInterpolationSpeed);
 
-        SetRotationSourceValue(0, 1, this, NewRotation);
+        GetRotatorStack(0)[1].SetSourceValue(this, NewRotation);
     }
 
     // Updating desired transform stacks
 
     // Core transform update
-    SetVectorSourceValue(DesiredLocationStackID, 0, this, GetHandler()->GetCore()->GetComponentLocation());
-    SetRotationSourceValue(DesiredRotationStackID, 0, this, GetHandler()->GetCore()->GetComponentRotation());
+
+    GetVectorStack(DesiredLocationStackID)[0].SetSourceValue(this, GetHandler()->GetCore()->GetComponentLocation());
+    GetRotatorStack(DesiredRotationStackID)[0].SetSourceValue(this, GetHandler()->GetCore()->GetComponentRotation());
 
     // Caching desired transform
-    CachedDesiredLocation = CalculateVectorStackValue(DesiredLocationStackID);
-    CachedDesiredRotation = CalculateRotationStackValue(DesiredRotationStackID);
+    CachedDesiredLocation = UStacksAndLayers::CalculateStack_Vector(GetVectorStack(DesiredLocationStackID));
+    CachedDesiredRotation = UStacksAndLayers::CalculateStack_Rotator(GetRotatorStack(DesiredRotationStackID));
 
     // Updating enforcement
     //FVector EnforcementVector = UKismetMathLibrary::VInterpTo(GetComponentLocation(), CachedDesiredLocation, DeltaTime, DesiredPositionEnforcement) - GetComponentLocation();
@@ -122,8 +122,8 @@ void UMPAS_BodySegment::SyncToFetchedBoneTransforms(float DeltaTime)
         // Offset realocation
         if (BoneTransformSync_Timer <= 0)
         {
-            FVector CurrentSyncOffset = GetVectorSourceValue(0, BoneTransformSync_LocationLayerID, this);
-            FRotator CurrentSyncAngle = GetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this);
+            FVector CurrentSyncOffset = GetVectorStack(0)[BoneTransformSync_LocationLayerID].GetSourceValue(this);
+            FRotator CurrentSyncAngle = GetRotatorStack(0)[BoneTransformSync_RotationLayerID].GetSourceValue(this);
 
             FVector NewSyncOffset = UKismetMathLibrary::VInterpTo(  CurrentSyncOffset, 
                                                                     BoneTransformSync_AppliedBoneLocationOffset,
@@ -134,8 +134,8 @@ void UMPAS_BodySegment::SyncToFetchedBoneTransforms(float DeltaTime)
                                                                     AppliedAngularOffsetRot,
                                                                     DeltaTime, BoneTransformSync_OffsetAngularRealocationSpeed);
 
-            SetVectorSourceValue(0, BoneTransformSync_LocationLayerID, this, NewSyncOffset);
-            SetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this, NewSyncAngle);
+            GetVectorStack(0)[BoneTransformSync_LocationLayerID].SetSourceValue(this, NewSyncOffset);
+            GetRotatorStack(0)[BoneTransformSync_RotationLayerID].SetSourceValue(this, NewSyncAngle);
 
             BoneTransformSync_AppliedBoneLocationOffset -= NewSyncOffset - CurrentSyncOffset;
             BoneTransformSync_AppliedBoneAngularOffset = (AppliedAngularOffsetRot - (NewSyncAngle - CurrentSyncAngle)).Quaternion();

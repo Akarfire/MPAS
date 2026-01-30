@@ -29,29 +29,28 @@ void UMPAS_PositionDriver::LinkRigElement(UMPAS_Handler* InHandler)
 		UMPAS_RigElement* Child = GetHandler()->GetRigData()[ChildName].RigElement;
 
 		// Accessing vector stack
-		int32 LocationStackID = Child->GetVectorStackID(Child->PositionDriverIntegration_LocationStackName);
+		int32 LocationStackID = Child->GetVectorStackID(FName(Child->PositionDriverIntegration_LocationStackName));
 
 		// Creating it if failed to find
 		if (LocationStackID == -1)
 		{
-			LocationStackID = Child->RegisterVectorStack(PositionDriverIntegration_LocationStackName);
+			LocationStackID = Child->RegisterVectorStack(FName(PositionDriverIntegration_LocationStackName));
 		}
 
 		// Creating new layer in the specified stack
-		int32 LocationLayerID = Child->RegisterVectorLayer(LocationStackID, "PositionDriverIntegration", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 0, false);
-
-
+		int32 LocationLayerID = Child->RegisterVectorLayer(LocationStackID, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Add, 0, false, "PositionDriverIntegration"));
+		
 		// Accessing rotation stack
-		int32 RotationStackID = Child->GetRotationStackID(Child->PositionDriverIntegration_RotationStackName);
+		int32 RotationStackID = Child->GetRotatorStackID(FName(Child->PositionDriverIntegration_RotationStackName));
 
 		// Creating it if failed to find
 		if (RotationStackID == -1)
 		{
-			RotationStackID = Child->RegisterRotationStack(PositionDriverIntegration_RotationStackName);
+			RotationStackID = Child->RegisterRotatorStack(FName(PositionDriverIntegration_RotationStackName));
 		}
 
 		// Creating new layer in the specified stack
-		int32 RotationLayerID = Child->RegisterRotationLayer(LocationStackID, "PositionDriverIntegration", EMPAS_LayerBlendingMode::Normal, 1.f, 0, false);
+		int32 RotationLayerID = Child->RegisterRotatorLayer(LocationStackID, FMPAS_RotatorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Add, 0, false, "PositionDriverIntegration"));
 
 
 		// Writing Driven Element Data
@@ -66,8 +65,8 @@ void UMPAS_PositionDriver::LinkRigElement(UMPAS_Handler* InHandler)
 	if (IsCoreElement)
 	{
 		// Core location and rotation initial cache
-		SetVectorSourceValue(0, 0, this, GetHandler()->GetCore()->GetComponentLocation());
-		SetRotationSourceValue(0, 0, this, GetHandler()->GetCore()->GetComponentRotation());
+		GetVectorStack(0)[0].SetSourceValue(this, GetHandler()->GetCore()->GetComponentLocation());
+		GetRotatorStack(0)[0].SetSourceValue(this, GetHandler()->GetCore()->GetComponentRotation());
 
 		// Self location and rotation fetching
 
@@ -75,8 +74,8 @@ void UMPAS_PositionDriver::LinkRigElement(UMPAS_Handler* InHandler)
 		InitialSelfTransform.SetLocation(UKismetMathLibrary::Quat_UnrotateVector(GetHandler()->GetCore()->GetComponentRotation().Quaternion(), GetComponentLocation() - GetHandler()->GetCore()->GetComponentLocation()));
 		InitialSelfTransform.SetRotation(UKismetMathLibrary::NormalizedDeltaRotator(GetComponentRotation(), GetHandler()->GetCore()->GetComponentRotation()).Quaternion());
 
-		SetVectorSourceValue(0, 1, this, UKismetMathLibrary::Quat_RotateVector(GetHandler()->GetCore()->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()));
-		SetRotationSourceValue(0, 1, this, FRotator(InitialSelfTransform.GetRotation()));
+		GetVectorStack(0)[1].SetSourceValue(this, UKismetMathLibrary::Quat_RotateVector(GetHandler()->GetCore()->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()));
+		GetRotatorStack(0)[1].SetSourceValue(this, FRotator(InitialSelfTransform.GetRotation()));
 	}
 
 	OnPositionDriverInitialized();
@@ -90,11 +89,11 @@ void UMPAS_PositionDriver::UpdateRigElement(float DeltaTime)
 	if (IsCoreElement)
 	{
 		// Sampling core transform
-		SetVectorSourceValue(0, 0, this, GetHandler()->GetCore()->GetComponentLocation());
-		SetRotationSourceValue(0, 0, this, GetHandler()->GetCore()->GetComponentRotation());
+		GetVectorStack(0)[0].SetSourceValue(this, GetHandler()->GetCore()->GetComponentLocation());
+		GetRotatorStack(0)[0].SetSourceValue(this, GetHandler()->GetCore()->GetComponentRotation());
 
 		// Updating self location based on new core rotation
-		SetVectorSourceValue(0, 1, this, UKismetMathLibrary::Quat_RotateVector(GetHandler()->GetCore()->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()));
+		GetVectorStack(0)[1].SetSourceValue(this, UKismetMathLibrary::Quat_RotateVector(GetHandler()->GetCore()->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()));
 	}
 
 	Super::UpdateRigElement(DeltaTime);
@@ -107,7 +106,7 @@ void UMPAS_PositionDriver::UpdateRigElement(float DeltaTime)
 
 		CalculateElementTransform(RequiredLocation, RequiredRotation, DrivenElementEntry.Key);
 
-		DrivenElementEntry.Key->SetVectorSourceValue(DrivenElementEntry.Value.LocationStackID, DrivenElementEntry.Value.LocationLayerID, this, RequiredLocation);
-		DrivenElementEntry.Key->SetRotationSourceValue(DrivenElementEntry.Value.RotationStackID, DrivenElementEntry.Value.RotationLayerID, this, RequiredRotation);
+		DrivenElementEntry.Key->GetVectorStack(DrivenElementEntry.Value.LocationStackID)[DrivenElementEntry.Value.LocationLayerID].SetSourceValue(this, RequiredLocation);
+		DrivenElementEntry.Key->GetRotatorStack(DrivenElementEntry.Value.RotationStackID)[DrivenElementEntry.Value.RotationLayerID].SetSourceValue(this, RequiredRotation);
 	}
 }

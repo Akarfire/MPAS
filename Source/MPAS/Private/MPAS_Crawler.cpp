@@ -13,19 +13,20 @@ void UMPAS_Crawler::InitRigElement(UMPAS_Handler* InHandler)
 	Super::InitRigElement(InHandler);
 
 	// Registering a location override layer 
-	SelfAbsoluteLocationLayer = RegisterVectorLayer(0, "SelfAbsoluteLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 0, true);
-	SetVectorSourceValue(0, SelfAbsoluteLocationLayer, this, GetComponentLocation());
+	
+	SelfAbsoluteLocationLayer = RegisterVectorLayer(0, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Add, 0, true, "SelfAbsoluteLocation"));
+	GetVectorStack(0)[SelfAbsoluteLocationLayer].SetSourceValue(this, GetComponentLocation());
 
 	// Target location stack
 	TargetLocationStackID = RegisterVectorStack("TargetLocationStack");
-	RegisterVectorLayer(TargetLocationStackID, "BasicTargetLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 0, true);
-
+	RegisterVectorLayer(TargetLocationStackID, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Add, 0, true, "BasicTargetLocation"));
+	
 	// Effector shift stack
 	EffectorShiftStackID = RegisterVectorStack("EffectorShiftStack");
 
 	// Bone Transform Sync
-	BoneTransformSync_LocationLayerID = RegisterVectorLayer(0, "BoneTransformSync", EMPAS_LayerBlendingMode::Add, EMPAS_LayerCombinationMode::Add, 1.f, BoneTransformSyncingLayerPriority);
-	BoneTransformSync_RotationLayerID = RegisterRotationLayer(0, "BoneTransformSync", EMPAS_LayerBlendingMode::Add, 1.f, BoneTransformSyncingLayerPriority);
+	BoneTransformSync_LocationLayerID = RegisterVectorLayer(0, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Add, 1.f, EMPAS_LayerCombinationMode::Add, BoneTransformSyncingLayerPriority, false, "BoneTransformSync"));
+	BoneTransformSync_RotationLayerID = RegisterRotatorLayer(0, FMPAS_RotatorLayer(EMPAS_LayerBlendingMode::Add, 1.f, EMPAS_LayerCombinationMode::Add, BoneTransformSyncingLayerPriority, false, "BoneTransformSync"));
 }
 
 // CALLED BY THE HANDLER : Contains the logic that links this element with other elements in the rig
@@ -41,8 +42,8 @@ void UMPAS_Crawler::LinkRigElement(UMPAS_Handler* InHandler)
 	ParentOffset = UKismetMathLibrary::Quat_UnrotateVector(ParentElement->GetComponentQuat(), ParentElement->GetComponentLocation() - GetComponentLocation());
 
 	// Regisering crawler effector layer
-	ParentLocationEffectorLayer = ParentElement->RegisterVectorLayer(0, "CrawlersLocationEffector", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Average);
-	ParentElement->SetVectorSourceValue(0, ParentLocationEffectorLayer, this, GetComponentLocation() + ParentElement->GetComponentRotation().RotateVector(ParentOffset));
+	ParentLocationEffectorLayer = ParentElement->RegisterVectorLayer(0, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Average, 0, true, "CrawlersLocationEffector"));
+	ParentElement->GetVectorStack(0)[ParentLocationEffectorLayer].SetSourceValue(this, GetComponentLocation() + ParentElement->GetComponentRotation().RotateVector(ParentOffset));
 }
 
 // CALLED BY THE HANDLER : Updating Rig Element every tick
@@ -70,9 +71,9 @@ bool UMPAS_Crawler::GroundCheck(FHitResult& Hit)
 FVector UMPAS_Crawler::GetTargetLocation()
 {
 	// Basic target location calculation
-	SetVectorSourceValue(TargetLocationStackID, 0, this, ParentBody->GetDesiredLocation() + ParentBody->GetDesiredRotation().RotateVector(-1 * ParentOffset));
+	ParentElement->GetVectorStack(TargetLocationStackID)[0].SetSourceValue(this, ParentBody->GetDesiredLocation() + ParentBody->GetDesiredRotation().RotateVector(-1 * ParentOffset));
 	
-	return CalculateVectorStackValue(TargetLocationStackID);
+	return UStacksAndLayers::CalculateStack_Vector(GetVectorStack(TargetLocationStackID));
 }
 
 // Per-frame movement logic of the crawler
@@ -111,7 +112,7 @@ void UMPAS_Crawler::UpdateMovement(float DeltaTime)
 
 			float D = Speed * Speed - 4 * GroundFriction * MovementDistance;
 
-			if (D < 0) CurrentTimeToTarget = 1000000000000000;
+			if (D < 0) CurrentTimeToTarget = 1e20;
 			else CurrentTimeToTarget = UKismetMathLibrary::FMin(Speed - sqrt(D), Speed + sqrt(D)) / (2 * GroundFriction);
 
 			// Finding breaking time
@@ -147,8 +148,8 @@ void UMPAS_Crawler::UpdateMovement(float DeltaTime)
 	}
 
 	// Updating element's location layer value
-	FVector NewLocation = GetVectorSourceValue(0, SelfAbsoluteLocationLayer, this) + MovementVelocity;
-	SetVectorSourceValue(0, SelfAbsoluteLocationLayer, this, NewLocation);
+	FVector NewLocation = GetVectorStack(0)[SelfAbsoluteLocationLayer].GetSourceValue(this) + MovementVelocity;
+	GetVectorStack(0)[SelfAbsoluteLocationLayer].SetSourceValue(this, NewLocation);
 }
 
 // Updates effector on the parent element's location
@@ -156,13 +157,13 @@ void UMPAS_Crawler::UpdateParentEffector(float DeltaTime)
 {
 	if (!ParentElement) return;
 
-	RealEffectorShift = UKismetMathLibrary::VInterpTo(RealEffectorShift, CalculateVectorStackValue(EffectorShiftStackID), DeltaTime, EffectorShiftInterpolationSpeed);
+	RealEffectorShift = UKismetMathLibrary::VInterpTo(RealEffectorShift, UStacksAndLayers::CalculateStack_Vector(GetVectorStack(EffectorShiftStackID)), DeltaTime, EffectorShiftInterpolationSpeed);
 
 	FVector LocalizedRealShift = UKismetMathLibrary::Quat_UnrotateVector(ParentElement->GetComponentQuat(), RealEffectorShift);
 	FVector LocalizedLimitedRealShift = ClampVector(LocalizedRealShift, EffectorShift_Min, EffectorShift_Max);
 	FVector LimitedRealShift = ParentElement->GetComponentQuat().RotateVector(LocalizedLimitedRealShift);
 
-	ParentElement->SetVectorSourceValue(0, ParentLocationEffectorLayer, this, GetComponentLocation() + ParentElement->GetComponentRotation().RotateVector(ParentOffset) + LimitedRealShift);
+	ParentElement->GetVectorStack(0)[ParentLocationEffectorLayer].SetSourceValue(this, GetComponentLocation() + ParentElement->GetComponentRotation().RotateVector(ParentOffset) + LimitedRealShift);
 }
 
 
@@ -193,8 +194,8 @@ void UMPAS_Crawler::SyncToFetchedBoneTransforms(float DeltaTime)
 		// Offset realocation
 		if (BoneTransformSync_Timer <= 0)
 		{
-			FVector CurrentSyncOffset = GetVectorSourceValue(0, BoneTransformSync_LocationLayerID, this);
-			FRotator CurrentSyncAngle = GetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this);
+			FVector CurrentSyncOffset = GetVectorStack(0)[BoneTransformSync_LocationLayerID].GetSourceValue(this);
+			FRotator CurrentSyncAngle = GetRotatorStack(0)[BoneTransformSync_RotationLayerID].GetSourceValue(this);
 
 			FVector NewSyncOffset = UKismetMathLibrary::VInterpTo(CurrentSyncOffset,
 				BoneTransformSync_AppliedBoneLocationOffset,
@@ -205,8 +206,8 @@ void UMPAS_Crawler::SyncToFetchedBoneTransforms(float DeltaTime)
 				AppliedAngularOffsetRot,
 				DeltaTime, BoneTransformSync_OffsetAngularRealocationSpeed);
 
-			SetVectorSourceValue(0, BoneTransformSync_LocationLayerID, this, NewSyncOffset);
-			SetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this, NewSyncAngle);
+			GetVectorStack(0)[BoneTransformSync_LocationLayerID].SetSourceValue(this, NewSyncOffset);
+			GetRotatorStack(0)[BoneTransformSync_RotationLayerID].SetSourceValue(this, NewSyncAngle);
 
 			BoneTransformSync_AppliedBoneLocationOffset -= NewSyncOffset - CurrentSyncOffset;
 			BoneTransformSync_AppliedBoneAngularOffset = (AppliedAngularOffsetRot - (NewSyncAngle - CurrentSyncAngle)).Quaternion();

@@ -49,20 +49,20 @@ void UMPAS_Leg::InitRigElement(UMPAS_Handler* InHandler)
 
 
 	// Absolute location layer - overrides default stack layers before it, detaching the leg from it's parent and placing it in world space
-	SelfAbsoluteLocationLayerID = RegisterVectorLayer(0, "AbsoluteLegLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 0, true);
-	SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, GetComponentLocation());
-	
+	SelfAbsoluteLocationLayerID = RegisterVectorLayer(0, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Add, 0, true, "AbsoluteLegLocation"));
+	GetVectorStack(0)[SelfAbsoluteLocationLayerID].SetSourceValue(this, GetComponentLocation());
+
 	// Leg target location stack
 	LegTargetLocationStackID = RegisterVectorStack("LegTargetLocation");
-	RegisterVectorLayer(LegTargetLocationStackID, "BasicTargetLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 0, true);
+	RegisterVectorLayer(LegTargetLocationStackID, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Add, 0, true, "BasicTargetLocation"));
+
 
 	// Effector shift stack
 	EffectorShiftStackID = RegisterVectorStack("EffectorShift");
 
 	// Bone Transform Sync
-	BoneTransformSync_LocationLayerID = RegisterVectorLayer(0, "BoneTransformSync", EMPAS_LayerBlendingMode::Add, EMPAS_LayerCombinationMode::Add, 1.f, BoneTransformSyncingLayerPriority);
-	BoneTransformSync_RotationLayerID = RegisterRotationLayer(0, "BoneTransformSync", EMPAS_LayerBlendingMode::Add, 1.f, BoneTransformSyncingLayerPriority);
-
+	BoneTransformSync_LocationLayerID = RegisterVectorLayer(0, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Add, 1.f, EMPAS_LayerCombinationMode::Add, BoneTransformSyncingLayerPriority, false, "BoneTransformSync"));
+	BoneTransformSync_RotationLayerID = RegisterRotatorLayer(0, FMPAS_RotatorLayer(EMPAS_LayerBlendingMode::Add, 1.f, EMPAS_LayerCombinationMode::Add, BoneTransformSyncingLayerPriority, false, "BoneTransformSync"));
 
 	// Intention Driven Parameters
 	if (!InHandler->IsFloatParameterValid("INTENTION_LEGS_StepLengthMultiplier"))
@@ -96,7 +96,7 @@ void UMPAS_Leg::LinkRigElement(class UMPAS_Handler* InHandler)
 	LegTargetOffset = GetComponentLocation() - ParentElement->GetComponentLocation();
 
 	// Registers the effector layer
-	LegEffectorLayerID = ParentElement->RegisterVectorLayer(0, "LegsLocationEffector", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Average, 1.f, EffectorLayerPriority);
+	LegEffectorLayerID = ParentElement->RegisterVectorLayer(0, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Average, EffectorLayerPriority, false, "LegsLocationEffector"));
 
 	// Get resting pose offset
 	LegRestingPoseOffset = GetComponentLocation() - ParentElement->GetComponentLocation();
@@ -108,7 +108,7 @@ void UMPAS_Leg::LinkRigElement(class UMPAS_Handler* InHandler)
 	if (TraceResult != FVector(0, 0, 0))
 	{
 		ValidPlacement = true;
-		SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, TraceResult);
+		GetVectorStack(0)[SelfAbsoluteLocationLayerID].SetSourceValue(this, TraceResult);
 	}
 
 	else
@@ -143,11 +143,11 @@ void UMPAS_Leg::UpdateRigElement(float DeltaTime)
 	// If element is active 
 	if (GetRigElementActive())
 	{
-		RealEffectorShift = UKismetMathLibrary::VInterpTo(RealEffectorShift, CalculateVectorStackValue(EffectorShiftStackID), DeltaTime, EffectorShiftInterpolationSpeed);
+		RealEffectorShift = UKismetMathLibrary::VInterpTo(RealEffectorShift, UStacksAndLayers::CalculateStack_Vector(GetVectorStack(EffectorShiftStackID)), DeltaTime, EffectorShiftInterpolationSpeed);
 
 		FVector LocalLimitedRealEffectorShift = ClampVector(UKismetMathLibrary::Quat_UnrotateVector(GetComponentQuat(), RealEffectorShift), EffectorShift_Min, EffectorShift_Max);
 
-		ParentElement->SetVectorSourceValue(0, LegEffectorLayerID, this, GetComponentLocation() + ParentElement->GetComponentQuat().RotateVector(LocalLimitedRealEffectorShift));
+		ParentElement->GetVectorStack(0)[LegEffectorLayerID].SetSourceValue(this, GetComponentLocation() + ParentElement->GetComponentQuat().RotateVector(LocalLimitedRealEffectorShift));
 	}
 }
 
@@ -194,8 +194,8 @@ void UMPAS_Leg::SyncToFetchedBoneTransforms(float DeltaTime)
 		// Offset realocation
 		if (BoneTransformSync_Timer <= 0)
 		{
-			FVector CurrentSyncOffset = GetVectorSourceValue(0, BoneTransformSync_LocationLayerID, this);
-			FRotator CurrentSyncAngle = GetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this);
+			FVector CurrentSyncOffset = GetVectorStack(0)[BoneTransformSync_LocationLayerID].GetSourceValue(this);
+			FRotator CurrentSyncAngle = GetRotatorStack(0)[BoneTransformSync_RotationLayerID].GetSourceValue(this);
 
 			FVector NewSyncOffset = UKismetMathLibrary::VInterpTo(CurrentSyncOffset,
 				BoneTransformSync_AppliedBoneLocationOffset,
@@ -206,8 +206,8 @@ void UMPAS_Leg::SyncToFetchedBoneTransforms(float DeltaTime)
 				AppliedAngularOffsetRot,
 				DeltaTime, BoneTransformSync_OffsetAngularRealocationSpeed);
 
-			SetVectorSourceValue(0, BoneTransformSync_LocationLayerID, this, NewSyncOffset);
-			SetRotationSourceValue(0, BoneTransformSync_RotationLayerID, this, NewSyncAngle);
+			GetVectorStack(0)[BoneTransformSync_LocationLayerID].SetSourceValue(this, NewSyncOffset);
+			GetRotatorStack(0)[BoneTransformSync_RotationLayerID].SetSourceValue(this, NewSyncAngle);
 
 			BoneTransformSync_AppliedBoneLocationOffset -= NewSyncOffset - CurrentSyncOffset;
 			BoneTransformSync_AppliedBoneAngularOffset = (AppliedAngularOffsetRot - (NewSyncAngle - CurrentSyncAngle)).Quaternion();
@@ -221,9 +221,9 @@ FVector UMPAS_Leg::GetTargetLocation()
 {
 	// Basic target location calculation
 	if (ParentBody)
-		SetVectorSourceValue(LegTargetLocationStackID, 0, this, ParentBody->GetDesiredRotation().RotateVector(GetLegTargetOffset()) + ParentBody->GetDesiredLocation());
+		GetVectorStack(LegTargetLocationStackID)[0].SetSourceValue(this, ParentBody->GetDesiredRotation().RotateVector(GetLegTargetOffset()) + ParentBody->GetDesiredLocation());
 
-	return CalculateVectorStackValue(LegTargetLocationStackID);
+	return UStacksAndLayers::CalculateStack_Vector(GetVectorStack(LegTargetLocationStackID));
 }
 
 
@@ -338,7 +338,7 @@ void UMPAS_Leg::OnStepAnimationTimelineUpdated(FName InTimelineName, float Curre
 			ResultingStepHeight = StepHeight * StepHeightScalingCurve->GetFloatValue(StepDistance / (StepLength * StepLengthMultiplier));
 
 		FVector NewLocation = FMath::Lerp(StepAnimationStartLocation, StepAnimationTargetLocation, ExtentFactor) + GetUpVector() * ResultingStepHeight * HeightFactor;
-		SetVectorSourceValue(0, SelfAbsoluteLocationLayerID, this, NewLocation);
+		GetVectorStack(0)[SelfAbsoluteLocationLayerID].SetSourceValue(this, NewLocation);
 	}
 }
 

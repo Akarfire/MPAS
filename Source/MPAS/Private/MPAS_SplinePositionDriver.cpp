@@ -44,8 +44,8 @@ void UMPAS_SplinePositionDriver::ScanSplineControlPoints()
 		if (ControlPointPositionModeOverrides.Contains(i))
 			ControlPointData = ControlPointPositionModeOverrides[i];
 
-		ControlPointData.LocationVectorStackID = RegisterVectorStack("ControlPointLocation_" + FString::FromInt(i));
-		RegisterVectorLayer(ControlPointData.LocationVectorStackID, "BaseLocation", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 0, true);
+		ControlPointData.LocationVectorStackID = RegisterVectorStack(FName("ControlPointLocation_" + FString::FromInt(i)));
+		RegisterVectorLayer(ControlPointData.LocationVectorStackID, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Add, 0, true, "BaseLocation"));
 		
 		ControlPointData.IntendedRelativeOffset = UKismetMathLibrary::Quat_UnrotateVector(PreviousPointRotation, Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World) - PreviousPointLocation);
 
@@ -171,10 +171,10 @@ void UMPAS_SplinePositionDriver::SetControlPointLocation(int32 InControlPoint, c
 	// Forcing new location if needed
 	if (ForceMovement)
 	{
-		SetVectorSourceValue(ControlPoints[InControlPoint].LocationVectorStackID, 0, this, InLocation);
+		GetVectorStack(ControlPoints[InControlPoint].LocationVectorStackID)[0].SetSourceValue(Cast<UObject>(this), InLocation);
 
 		// Applying stack value to the spline point
-		Spline->SetLocationAtSplinePoint(InControlPoint, CalculateVectorStackValue(ControlPoints[InControlPoint].LocationVectorStackID), ESplineCoordinateSpace::World);
+		Spline->SetLocationAtSplinePoint(InControlPoint, UStacksAndLayers::CalculateStack_Vector(GetVectorStack(ControlPoints[InControlPoint].LocationVectorStackID)), ESplineCoordinateSpace::World);
 	}
 }
 
@@ -202,7 +202,8 @@ int32 UMPAS_SplinePositionDriver::AddControlPointProceduralEffectLayer(int32 InC
 {
 	if (!Spline || InControlPoint < 0 || InControlPoint >= ControlPoints.Num()) return -1;
 
-	return RegisterVectorLayer(ControlPoints[InControlPoint].LocationVectorStackID, InLayerName, InBlendingMode, InCombinationMode, InBlendingFactor, InPriority, InForceAllElementActive);
+	return RegisterVectorLayer(ControlPoints[InControlPoint].LocationVectorStackID, FMPAS_VectorLayer(InBlendingMode, InBlendingFactor, InCombinationMode, InPriority, InForceAllElementActive, FName(InLayerName)));
+	
 }
 
 // Adds (or modifies) the value on the specified effect layer of the specific control point
@@ -210,7 +211,7 @@ void UMPAS_SplinePositionDriver::SetControlPointProceduralEffectSourceValue(int3
 {
 	if (!Spline || InControlPoint < 0 || InControlPoint >= ControlPoints.Num() || InLayerID == 0) return;
 
-	SetVectorSourceValue(ControlPoints[InControlPoint].LocationVectorStackID, InLayerID, InSource, Value);
+	GetVectorStack(ControlPoints[InControlPoint].LocationVectorStackID)[InLayerID].SetSourceValue(Cast<UObject>(InSource), Value);
 }
 
 // Retunrs the value on the specified effect layer of the specific control point
@@ -218,7 +219,7 @@ const FVector& UMPAS_SplinePositionDriver::GetControlPointProceduralEffectSource
 {
 	if (!Spline || InControlPoint < 0 || InControlPoint >= ControlPoints.Num()) FVector::ZeroVector;
 
-	return GetVectorSourceValue(ControlPoints[InControlPoint].LocationVectorStackID, InLayerID, InSource);
+	return GetVectorStack(ControlPoints[InControlPoint].LocationVectorStackID)[InLayerID].GetSourceValue(Cast<UObject>(InSource));
 }
 
 
@@ -277,7 +278,7 @@ void UMPAS_SplinePositionDriver::UpdateRigElement(float DeltaTime)
 
 		if (ControlPoints[i].PositionMode == EMPAS_ControlPointPositionMode::Rigid)
 		{
-			SetVectorSourceValue(ControlPoints[i].LocationVectorStackID, 0, this, PreviousPointLocation + Offset);
+			GetVectorStack(ControlPoints[i].LocationVectorStackID)[0].SetSourceValue(Cast<UObject>(this), PreviousPointLocation + Offset);
 		}
 
 		else if (ControlPoints[i].PositionMode == EMPAS_ControlPointPositionMode::Soft)
@@ -319,7 +320,7 @@ void UMPAS_SplinePositionDriver::UpdateRigElement(float DeltaTime)
 				ClampedVector += PointQuat.RotateVector(FVector(0, 0, 1) * UKismetMathLibrary::SignOfFloat(VerticalDeformation) * Limitation - FVector(0, 0, 1) * VerticalDeformation);
 			
 			// Applying
-			SetVectorSourceValue(ControlPoints[i].LocationVectorStackID, 0, this, PreviousPointLocation + Offset + ClampedVector);
+			GetVectorStack(ControlPoints[i].LocationVectorStackID)[0].SetSourceValue(Cast<UObject>(this), PreviousPointLocation + Offset + ClampedVector);
 		}
 
 		else // World Space case
@@ -328,7 +329,7 @@ void UMPAS_SplinePositionDriver::UpdateRigElement(float DeltaTime)
 		}
 
 		// Applying stack value to the spline point
-		Spline->SetLocationAtSplinePoint(i, CalculateVectorStackValue(ControlPoints[i].LocationVectorStackID), ESplineCoordinateSpace::World);
+		Spline->SetLocationAtSplinePoint(i, UStacksAndLayers::CalculateStack_Vector(GetVectorStack(ControlPoints[i].LocationVectorStackID)), ESplineCoordinateSpace::World);
 
 		// Loop stuff
 		PreviousPointLocation = Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);

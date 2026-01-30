@@ -31,8 +31,13 @@ void UMPAS_LegIntentionDriverState::EnterState_Implementation()
 			if (LegsData.Contains(ParentBody)) LegsData[ParentBody].Add(Leg);
 			else LegsData.Add(ParentBody, TArray<UMPAS_Leg*> { Leg });
 
-			TargetLayers.Add(Leg, Leg->RegisterVectorLayer(Leg->GetTargetLocationStackID(), "IntentionDrivenLegTarget", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 1, true));
-			EffectorShiftLayers.Add(Leg, Leg->RegisterVectorLayer(Leg->GetEffectorShiftStackID(), "IntentionDrivenEffectorShift", EMPAS_LayerBlendingMode::Normal, EMPAS_LayerCombinationMode::Add, 1.f, 1, true));
+			int32 Id = Leg->RegisterVectorLayer(Leg->GetTargetLocationStackID(),FMPAS_VectorLayer(	EMPAS_LayerBlendingMode::Normal, 1.0f, 
+																									EMPAS_LayerCombinationMode::Add, 1, true, "IntentionDrivenLegTarget"));	
+			TargetLayers.Add(Leg, Id);
+
+			Id = Leg->RegisterVectorLayer(Leg->GetEffectorShiftStackID(), FMPAS_VectorLayer(	EMPAS_LayerBlendingMode::Normal, 1.0f,
+																								EMPAS_LayerCombinationMode::Add, 1, true, "IntentionDrivenEffectorShift"));
+			EffectorShiftLayers.Add(Leg, Id);
 		}
 	}
 }
@@ -74,7 +79,7 @@ void UMPAS_LegIntentionDriverState::UpdateState_Implementation(float DeltaTime)
 			// If leg's placement was succesful we fetch it's data and mark it as an active leg
 
 			// Setting leg's target location
-			Leg->SetVectorSourceValue(Leg->GetTargetLocationStackID(), TargetLayers[Leg], Leg, PlacementLocation);
+			Leg->GetVectorStack(Leg->GetTargetLocationStackID())[TargetLayers[Leg]].LayerData.SetSourceValue(Leg, PlacementLocation);
 
 			// Marking leg as active
 			ActiveLegs.Add(Leg);
@@ -103,7 +108,7 @@ void UMPAS_LegIntentionDriverState::UpdateState_Implementation(float DeltaTime)
 
 		// Setting leg shift with interpolation
 		for (int i = 0; i < ActiveLegs.Num(); i++)
-			ActiveLegs[i]->SetVectorSourceValue(ActiveLegs[i]->GetEffectorShiftStackID(), EffectorShiftLayers[ActiveLegs[i]], ActiveLegs[i], Shift[i]);
+			ActiveLegs[i]->GetVectorStack(ActiveLegs[i]->GetEffectorShiftStackID())[EffectorShiftLayers[ActiveLegs[i]]].LayerData.SetSourceValue(ActiveLegs[i], Shift[i]);
 	}
 }
 

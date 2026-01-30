@@ -4,164 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
+#include "StacksAndLayers.h"
 #include "MPAS_RigElement.generated.h"
-
-
-// LAYERS
-
-// Blending mode for location/rotation/... layers in stacks
-UENUM(BlueprintType)
-enum class EMPAS_LayerBlendingMode : uint8
-{
-	Normal UMETA(DisplayName="Normal"),
-	Add UMETA(DisplayName="Add"),
-	Multiply UMETA(DisplayName="Multiply")
-};
-
-// The rule by which the elements in a single layer are combined
-UENUM(BlueprintType)
-enum class EMPAS_LayerCombinationMode : uint8
-{
-	Add UMETA(DisplayName="Add"),
-	Multiply UMETA(DisplayName="Multiply"),
-	Average UMETA(DisplayName="Average")
-};
-
-
-USTRUCT(BlueprintType)
-struct FMPAS_VectorLayer
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool Enabled = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	EMPAS_LayerBlendingMode BlendingMode;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float BlendingFactor = 1.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	EMPAS_LayerCombinationMode CombinationMode;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TMap<UMPAS_RigElement*, FVector> LayerElements;
-
-	// Higher -> higher
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int Priority = 0;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool ForceAllElementsActive;
-
-	FMPAS_VectorLayer(	EMPAS_LayerBlendingMode InBlendingMode = EMPAS_LayerBlendingMode::Normal,
-						float InBlendingFactor = 1.f,
-						EMPAS_LayerCombinationMode InLayerCombinationMode = EMPAS_LayerCombinationMode::Average, 
-						int InPriority = 0,
-						bool InForceAllElementsActive = false): 
-
-		BlendingMode(InBlendingMode), BlendingFactor(InBlendingFactor), CombinationMode(InLayerCombinationMode), Priority(InPriority), ForceAllElementsActive(InForceAllElementsActive) {}
-};
-
-USTRUCT(BlueprintType)
-struct FMPAS_VectorStack
-{
-	GENERATED_USTRUCT_BODY()
-
-	// [LayerID] -> <Vector Layer>
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<FMPAS_VectorLayer> Layers;
-
-	// [Execution Step] -> <LayerID>
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<int32> StackOrder;
-
-	// Since normal layers override everything that lies beneath them, it is logical to start compuatation from the top-most normal layer with blending factor of 1.0f
-	// But that layer may not be active for any number of reasons, so we cache all of the normal layer with blending factor of 1.0f in this array, so we can check if they are active in runtime
-	// Layer are identified by their stack order id and placed top to bottom (0 - the highest such layer)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<int32> StartingLayersCache;
-
-	// Adds a new layer into the stack and updates the stack order
-	int32 AddVectorLayer(FMPAS_VectorLayer InLayer);
-
-	// Recalucates StartingLayersCache array, should be called whenether a new layer is added/removed or some normal layer's blending factor is changed
-	void RecalculateStartingLayerCache();
-
-
-	int32 Num() { return Layers.Num(); }
-
-	FMPAS_VectorLayer& operator[] (int32 InID) { return Layers[InID]; }
-};
-
-
-USTRUCT(BlueprintType)
-struct FMPAS_RotatorLayer
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool Enabled = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	EMPAS_LayerBlendingMode BlendingMode;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float BlendingFactor = 1.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	EMPAS_LayerCombinationMode CombinationMode;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TMap<UMPAS_RigElement*, FRotator> LayerElements;
-
-	// Higher -> higher
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int Priority = 0;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool ForceAllElementsActive;
-
-	FMPAS_RotatorLayer(	EMPAS_LayerBlendingMode InBlendingMode = EMPAS_LayerBlendingMode::Normal,
-						float InBlendingFactor = 1.f,
-						EMPAS_LayerCombinationMode InLayerCombinationMode = EMPAS_LayerCombinationMode::Average,
-						int InPriority = 0,
-						bool InForceAllElementsActive = false) :
-
-		BlendingMode(InBlendingMode), BlendingFactor(InBlendingFactor), CombinationMode(InLayerCombinationMode), Priority(InPriority), ForceAllElementsActive(InForceAllElementsActive) {}
-};
-
-USTRUCT(BlueprintType)
-struct FMPAS_RotatorStack
-{
-	GENERATED_USTRUCT_BODY()
-
-	// [LayerID] -> <Rotator Layer>
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<FMPAS_RotatorLayer> Layers;
-
-	// [Execution Step] -> <LayerID>
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<int32> StackOrder;
-
-	// Since normal layers override everything that lies beneath them, it is logical to start compuatation from the top-most normal layer with blending factor of 1.0f
-	// But that layer may not be active for any number of reasons, so we cache all of the normal layer with blending factor of 1.0f in this array, so we can check if they are active in runtime
-	// Layer are identified by their stack order id and placed top to bottom (0 - the highest such layer)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<int32> StartingLayersCache;
-
-	// Adds a new layer into the stack and updates the stack order
-	int32 AddRotatorLayer(FMPAS_RotatorLayer InLayer);
-
-	// Recalucates StartingLayersCache array, should be called whenether a new layer is added/removed or some normal layer's blending factor is changed
-	void RecalculateStartingLayerCache();
-
-
-	int32 Num() { return Layers.Num(); }
-
-	FMPAS_RotatorLayer& operator[] (int32 InID) { return Layers[InID]; }
-};
 
 
 // ELEMENT TYPE
@@ -175,7 +19,7 @@ enum class EMPAS_ElementPositionMode : uint8
 
 // RIG ELEMENT
 UCLASS(Blueprintable, ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
-class MPAS_API UMPAS_RigElement : public USceneComponent
+class MPAS_API UMPAS_RigElement : public USceneComponent, public ISourceInterface
 {
 	GENERATED_BODY()
 
@@ -260,8 +104,8 @@ public:
 	// Whether this element is currently active (Implementation can depend on the specific element, override this method if you need custom funcitonality)
 	// Default behavior: return GetRigElementEnabled();
 	UFUNCTION(BlueprintPure, BlueprintCallable, BlueprintNativeEvent, Category = "MPAS|RigElement")
-	bool GetRigElementActive();
-	virtual bool GetRigElementActive_Implementation() { return Enabled; }
+	bool GetRigElementActive() const;
+	virtual bool GetRigElementActive_Implementation() const { return Enabled; }
 
 
 	// Returns the velocity of the rig element
@@ -292,16 +136,12 @@ public:
 	FString PositionDriverIntegration_RotationStackName = "DefaultRotation";
 
 
-
 // VECTOR LAYERS
-protected:
+public:
 
 	// Stacks of multi-purpose vector layers
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "MPAS|RigElement|VectorStacks")
 	TArray<FMPAS_VectorStack> VectorStacks;
-
-	// Name maps used to access Stacks and Layers by name (slower than ID)
-	TMap<FString, int32> VectorStackNames;
-	TArray<TMap<FString, int32>> VectorLayerNames;
 
 
 protected:
@@ -310,80 +150,30 @@ protected:
 	void ApplyDefaultLocationStack(float DeltaTime);
 
 
-	// Calculates the final vector of the given vector stack
-	FVector CalculateVectorStackValue(int32 InLocationStackID);
-
-	// Calculates the final vector of the given vector layer
-	FVector CalculateVectorLayerValue(const FMPAS_VectorLayer InLayer, bool& OutHasActiveElements);
-
-
 public:
 	// Registers a new vector stack and returns it's ID, returns an existing ID if the stack is already registered
 	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|VectorStacks")
-	int32 RegisterVectorStack(const FString& InStackName);
+	int32 RegisterVectorStack(const FName& InStackName);
 
-	// Registers a new vector layer in the given stack and returns it's ID, returns an existing ID if the layer is already registered, returns -1 if Stack does not exist
-	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|VectorStacks")
-	int32 RegisterVectorLayer(int32 InVectorStackID, const FString& InLayerName, EMPAS_LayerBlendingMode InBlendingMode, EMPAS_LayerCombinationMode InCombinationMode, float InBlendingFactor = 1.f, int32 InPriority = 0, bool InForceAllElementsActive = false);
+	// Registers a new vector layer and returns it's ID
+	UFUNCTION(BlueprintCallable, Category = "MPAS|RigElement|VectorStacks")
+	int32 RegisterVectorLayer(int32 InStackID, const FMPAS_VectorLayer& InLayer);
 
+	// Returns a reference to the given stack
+	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "MPAS|RigElement|VectorStacks")
+	FMPAS_VectorStack& GetVectorStack(int32 InStackID);
 
 	// Returns the ID of the given stack, -1 if stack not found
 	UFUNCTION(BlueprintPure, BlueprintCallable, Category="MPAS|RigElement|VectorStacks")
-	int32 GetVectorStackID(const FString& InStackName);
-
-	// Returns the ID of the given layer in the given stack, -1 if stack or layer not found
-	UFUNCTION(BlueprintPure, BlueprintCallable, Category="MPAS|RigElement|VectorStacks")
-	int32 GetVectorLayerID(int32 InVectorStackID, const FString& InLayerName);
-
-
-	// Sets the value of a vector source in the given Stack and Layer, if succeded: returns true, false - overwise
-	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|VectorStacks")
-	bool SetVectorSourceValue(int32 InVectorStackID, int32 InVectorLayerID, UMPAS_RigElement* InSourceElement, FVector InSourceValue);
-
-	// Removes the value of a vector source in the given Stack and Layer, if succeded: returns true, false - overwise
-	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|VectorStacks")
-	bool RemoveVectorSourceValue(int32 InVectorStackID, int32 InVectorLayerID, UMPAS_RigElement* InSourceElement);
-
-	// Returns the value of a location source in the given Stack and Layer
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|VectorStacks")
-	const FVector& GetVectorSourceValue(int32 InVectorStackID, int32 InVectorLayerID, UMPAS_RigElement* InSourceElement)
-	{
-		FVector* ValueP = VectorStacks[InVectorStackID][InVectorLayerID].LayerElements.Find(InSourceElement);
-		if (ValueP)
-			return *ValueP;
-
-		return FVector::ZeroVector;
-	}
-
-
-	// Enables/Disables the specified vector layer, if succeded: returns true, false - overwise
-	UFUNCTION(BlueprintCallable, Category = "MPAS|RigElement|VectorStacks")
-	bool SetVectorLayerEnabled(int32 InVectorStackID, int32 InVectorLayerID, bool InNewEnabled);
-
-	// Whenther the specified layer is enabled or not ("false" if the layer doesnt exist)
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|VectorStacks")
-	bool GetVectorLayerEnabled(int32 InVectorStackID, int32 InVectorLayerID);
-
-
-	// Modifies blending factor of the specified vector layer, if succeded: returns true, false - overwise
-	UFUNCTION(BlueprintCallable, Category = "MPAS|RigElement|VectorStacks")
-	bool SetVectorLayerBlendingFactor(int32 InVectorStackID, int32 InVectorLayerID, float InNewBlendingFactor);
-
-	// Returns the blending factor of the specified layer is enabled or not ("0" if the layer doesnt exist)
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|VectorStacks")
-	float GetVectorLayerBlendingFactor(int32 InVectorStackID, int32 InVectorLayerID);
-
+	int32 GetVectorStackID(const FName& InStackName);
 
 
 // ROTATION LAYERS
-protected:
+public:
 
 	// Stacks by layers of which the rotation of the element is determined
-	TArray<FMPAS_RotatorStack> RotationStacks;
-
-	// Name maps used to access Stacks and Layers by name (slower than ID)
-	TMap<FString, int32> RotationStackNames;
-	TArray<TMap<FString, int32>> RotationLayerNames;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "MPAS|RigElement|RotatorStacks")
+	TArray<FMPAS_RotatorStack> RotatorStacks;
 
 
 protected:
@@ -391,69 +181,27 @@ protected:
 	// Applies the default rotation stack to the element's world location
 	void ApplyDefaultRotationStack(float DeltaTime);
 
-	// Calculates the final rotation of the given rotation stack
-	FRotator CalculateRotationStackValue(int32 InRotationStackID);
-
-	// Calculates the final rotation of the given rotation layer
-	FRotator CalculateRotationLayerValue(const FMPAS_RotatorLayer InLayer, bool& OutHasActiveElements);
-
 
 public:
 	// Registers a new rotation stack and returns it's ID, returns an existing ID if the stack is already registered
-	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|RotationStacks")
-	int32 RegisterRotationStack(const FString& InStackName);
+	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|RotatorStacks")
+	int32 RegisterRotatorStack(const FName& InStackName);
 
-	// Registers a new rotation layer in the given stack and returns it's ID, returns an existing ID if the layer is already registered, returns -1 if Stack does not exist
-	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|RotationStacks")
-	int32 RegisterRotationLayer(int32 InRotationStackID, const FString& InLayerName, EMPAS_LayerBlendingMode InBlendingMode, float InBlendingFactor = 1.f, int32 InPriority = 0, bool InForceAllElementsActive = false);
+	// Registers a new vector layer and returns it's ID
+	UFUNCTION(BlueprintCallable, Category = "MPAS|RigElement|RotatorStacks")
+	int32 RegisterRotatorLayer(int32 InStackID, const FMPAS_RotatorLayer& InLayer);
 
+	// Returns a reference to the given stack
+	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "MPAS|RigElement|RotatorStacks")
+	FMPAS_RotatorStack& GetRotatorStack(int32 InStackID);
 
 	// Returns the ID of the given stack, -1 if stack not found
-	UFUNCTION(BlueprintPure, BlueprintCallable, Category="MPAS|RigElement|RotationStacks")
-	int32 GetRotationStackID(const FString& InStackName);
-
-	// Returns the ID of the given layer in the given stack, -1 if stack or layer not found
-	UFUNCTION(BlueprintPure, BlueprintCallable, Category="MPAS|RigElement|RotationStacks")
-	int32 GetRotationLayerID(int32 InRotationStackID, const FString& InLayerName);
+	UFUNCTION(BlueprintPure, BlueprintCallable, Category="MPAS|RigElement|RotatorStacks")
+	int32 GetRotatorStackID(const FName& InStackName);
 
 
-	// Sets the value of a rotation source in the given Stack and Layer, if succeded: returns true, false - overwise
-	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|RotationStacks")
-	bool SetRotationSourceValue(int32 InRotationStackID, int32 InRotationLayerID, UMPAS_RigElement* InSourceElement, FRotator InSourceValue);
-
-	// Removes the value of a rotation source in the given Stack and Layer, if succeded: returns true, false - overwise
-	UFUNCTION(BlueprintCallable, Category="MPAS|RigElement|RotationStacks")
-	bool RemoveRotationSourceValue(int32 InRotationStackID, int32 InRotationLayerID, UMPAS_RigElement* InSourceElement);
-
-	// Returns the value of a rotation source in the given Stack and Layer
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|RotationStacks")
-	FRotator GetRotationSourceValue(int32 InRotationStackID, int32 InRotationLayerID, UMPAS_RigElement* InSourceElement)
-	{
-		FRotator* ValueP = RotationStacks[InRotationStackID][InRotationLayerID].LayerElements.Find(InSourceElement);
-		if (ValueP)
-			return *ValueP;
-
-		return FRotator::ZeroRotator;
-	}
-
-
-	// Enables/Disables the specified rotation layer, if succeded: returns true, false - overwise
-	UFUNCTION(BlueprintCallable, Category = "MPAS|RigElement|RotationStacks")
-	bool SetRotationLayerEnabled(int32 InRotationStackID, int32 InRotationLayerID, bool InNewEnabled);
-
-	// Whenther the specified layer is enabled or not ("false" if the layer doesnt exist)
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|RotationStacks")
-	bool GetRotationLayerEnabled(int32 InRotationStackID, int32 InRotationLayerID);
-
-
-	// Modifies blending factor of the specified rotation layer, if succeded: returns true, false - overwise
-	UFUNCTION(BlueprintCallable, Category = "MPAS|RigElement|RotationStacks")
-	bool SetRotationLayerBlendingFactor(int32 InRotationStackID, int32 InRotationLayerID, float InNewBlendingFactor);
-
-	// Returns the blending factor of the specified layer is enabled or not ("0" if the layer doesnt exist)
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|RotationStacks")
-	float GetRotationLayerBlendingFactor(int32 InRotationStackID, int32 InRotationLayerID);
-
+public:
+	bool IsSourceActive_Implementation() const { return GetRigElementActive(); }
 
 
 // CALLED BY THE HANDLER
@@ -501,28 +249,16 @@ public:
 // DEBUGGING
 public:
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|VectorStacks")
-	const TMap<FString, int32>& DEBUG_GetVectorStackNames() { return VectorStackNames; }
-
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|VectorStacks")
-	const TMap<FString, int32>& DEBUG_GetVectorLayerNames(int32 InVectorStackID) { return VectorLayerNames[InVectorStackID]; }
-
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|Debug|VectorStacks")
-	const TArray<int32>& DEBUG_GetVectorStackExecutionOrder(int32 InVectorStackID) { return VectorStacks[InVectorStackID].StackOrder; }
+	const TArray<int32>& DEBUG_GetVectorStackExecutionOrder(int32 InVectorStackID) { return VectorStacks[InVectorStackID].StackData.StackOrder; }
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|VectorStacks")
 	const FMPAS_VectorLayer& DEBUG_GetVectorLayer(int32 InVectorStackID, int32 InVectorLayerID) { return VectorStacks[InVectorStackID][InVectorLayerID]; }
 
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|RotationStacks")
-	const TMap<FString, int32>& DEBUG_GetRotationStackNames() { return RotationStackNames; }
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|Debug|RotatorStacks")
+	const TArray<int32>& DEBUG_GetRotationStackExecutionOrder(int32 InRotationStackID) { return RotatorStacks[InRotationStackID].StackData.StackOrder; }
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|RotationStacks")
-	const TMap<FString, int32>& DEBUG_GetRotationLayerNames(int32 InRotationStackID) { return RotationLayerNames[InRotationStackID]; }
-
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|Debug|RotationStacks")
-	const TArray<int32>& DEBUG_GetRotationStackExecutionOrder(int32 InRotationStackID) { return RotationStacks[InRotationStackID].StackOrder; }
-
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|RotationStacks")
-	const FMPAS_RotatorLayer& DEBUG_GetRotationLayer(int32 InRotationStackID, int32 InRotationLayerID) { return RotationStacks[InRotationStackID][InRotationLayerID]; }
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|RotatorStacks")
+	const FMPAS_RotatorLayer& DEBUG_GetRotationLayer(int32 InRotationStackID, int32 InRotationLayerID) { return RotatorStacks[InRotationStackID][InRotationLayerID]; }
 };
