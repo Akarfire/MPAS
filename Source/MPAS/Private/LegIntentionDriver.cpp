@@ -79,7 +79,7 @@ void UMPAS_LegIntentionDriverState::UpdateState_Implementation(float DeltaTime)
 			// If leg's placement was succesful we fetch it's data and mark it as an active leg
 
 			// Setting leg's target location
-			Leg->GetVectorStack(Leg->GetTargetLocationStackID())[TargetLayers[Leg]].LayerData.SetSourceValue(Leg, PlacementLocation);
+			Leg->GetVectorStack(Leg->GetTargetLocationStackID())[TargetLayers[Leg]].SetSourceValue(Leg, PlacementLocation);
 
 			// Marking leg as active
 			ActiveLegs.Add(Leg);
@@ -108,7 +108,7 @@ void UMPAS_LegIntentionDriverState::UpdateState_Implementation(float DeltaTime)
 
 		// Setting leg shift with interpolation
 		for (int i = 0; i < ActiveLegs.Num(); i++)
-			ActiveLegs[i]->GetVectorStack(ActiveLegs[i]->GetEffectorShiftStackID())[EffectorShiftLayers[ActiveLegs[i]]].LayerData.SetSourceValue(ActiveLegs[i], Shift[i]);
+			ActiveLegs[i]->GetVectorStack(ActiveLegs[i]->GetEffectorShiftStackID())[EffectorShiftLayers[ActiveLegs[i]]].SetSourceValue(ActiveLegs[i], Shift[i]);
 	}
 }
 

@@ -14,6 +14,9 @@
 // Fires off when custom MPAS_Handler parameter value is changed
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnParameterValueChanged, FName, InParameterName);
 
+// Fires off before rig setup process, used for adding initial intention drivers and handling procedural rigs
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPreSetup);
+
 
 // STRUCTURES
 
@@ -116,8 +119,12 @@ public:
 	 * It allows for handling custom timers and timelines with Delegate notifications
 	 * Very useful for components that need to be animated and also for intention drivers
 	 */
-	UPROPERTY(BlueprintReadOnly, Category = "MPAS|Handler")
+	UPROPERTY(BlueprintReadOnly, Category = "Other")
 	USTT_TimerController* TimerController;
+
+	// Fires off before rig setup process, used for adding initial intention drivers and handling procedural rigs
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnPreSetup PreSetupDelegate;
 
 public:	
 	// Sets default values for this component's properties

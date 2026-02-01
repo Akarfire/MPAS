@@ -241,8 +241,6 @@ struct FMPAS_LayerBase
 template<typename T>
 struct FMPAS_StackBase
 {
-	T DEBUG_LayerValue;
-
 	// [LayerID] -> <Layer>
 	TArray<FMPAS_LayerBase<T>> Layers;
 
@@ -314,77 +312,66 @@ struct FMPAS_StackBase
 	}
 
 	// Calculates the final value of the stack based on it's layers
-	T CalculateStackValue()
+	T CalculateStackValue() const
 	{
-		//T FinalValue;
+		T FinalValue;
 
-		//int32 StartingLayer = -1;
-		//for (int32 i = 0; i < StartingLayersCache.Num(); i++)
-		//{
-		//	int32 StackOrderID = StartingLayersCache[i];
-
-		//	const FMPAS_LayerBase<T>& Layer = Layers[StackOrder[StackOrderID]];
-
-		//	if (!Layer.Enabled) continue;
-
-		//	bool HasActiveElements = false;
-		//	FinalValue = Layer.CalculateLayerValue(HasActiveElements);
-
-		//	if (HasActiveElements && Layer.BlendingFactor == 1.0f)
-		//	{
-		//		StartingLayer = StackOrderID + 1; // +1 because we have already calculated this layer's value and stored it in FinalValue
-		//		break;
-		//	}
-		//}
-
-		//if (StartingLayer == -1) // Rare case, when there are no normal layers with blending factor of 1.0f present
-		//{
-		//	FinalValue = TMPAS_Zero<T>::Get();
-		//	StartingLayer = 0;
-		//}
-
-		//for (int32 LayerOrderID = StartingLayer; LayerOrderID < Num(); LayerOrderID++)
-		//{
-		//	const FMPAS_LayerBase<T>& Layer = Layers[StackOrder[LayerOrderID]];
-
-		//	if (!Layer.Enabled) continue;
-
-		//	bool HasActiveElements = false;
-		//	T LayerValue = Layer.CalculateLayerValue(HasActiveElements);
-
-		//	if (HasActiveElements)
-		//	{
-		//		switch (Layer.BlendingMode)
-		//		{
-		//		case EMPAS_LayerBlendingMode::Normal:
-		//			FinalValue = TMPAS_Interpolate<T>::Interpolate(FinalValue, LayerValue, Layer.BlendingFactor);
-		//			break;
-
-		//		case EMPAS_LayerBlendingMode::Add:
-		//			FinalValue = TMPAS_Interpolate<T>::Interpolate(FinalValue, TMPAS_Add<T, T, T>::Add(FinalValue, LayerValue), Layer.BlendingFactor);
-		//			break;
-
-		//		case EMPAS_LayerBlendingMode::Multiply:
-		//			FinalValue = TMPAS_Interpolate<T>::Interpolate(FinalValue, TMPAS_Multiply<T, T, T>::Multiply(FinalValue, LayerValue), Layer.BlendingFactor);
-		//			break;
-
-		//		default: break;
-		//		}
-		//	}
-		//}
-
-		//return FinalValue;
-
-		bool plug = false;
-		if (Layers.IsValidIndex(0))
+		int32 StartingLayer = -1;
+		for (int32 i = 0; i < StartingLayersCache.Num(); i++)
 		{
-			DEBUG_LayerValue = Layers[0].CalculateLayerValue(plug);
-			check(false);
-			return DEBUG_LayerValue;
+			int32 StackOrderID = StartingLayersCache[i];
+
+			const FMPAS_LayerBase<T>& Layer = Layers[StackOrder[StackOrderID]];
+
+			if (!Layer.Enabled) continue;
+
+			bool HasActiveElements = false;
+			FinalValue = Layer.CalculateLayerValue(HasActiveElements);
+
+			if (HasActiveElements && Layer.BlendingFactor == 1.0f)
+			{
+				StartingLayer = StackOrderID + 1; // +1 because we have already calculated this layer's value and stored it in FinalValue
+				break;
+			}
 		}
 
-		else
-			return TMPAS_Zero<T>::Get();
+		if (StartingLayer == -1) // Rare case, when there are no normal layers with blending factor of 1.0f present
+		{
+			FinalValue = TMPAS_Zero<T>::Get();
+			StartingLayer = 0;
+		}
+
+		for (int32 LayerOrderID = StartingLayer; LayerOrderID < Num(); LayerOrderID++)
+		{
+			const FMPAS_LayerBase<T>& Layer = Layers[StackOrder[LayerOrderID]];
+
+			if (!Layer.Enabled) continue;
+
+			bool HasActiveElements = false;
+			T LayerValue = Layer.CalculateLayerValue(HasActiveElements);
+
+			if (HasActiveElements)
+			{
+				switch (Layer.BlendingMode)
+				{
+				case EMPAS_LayerBlendingMode::Normal:
+					FinalValue = TMPAS_Interpolate<T>::Interpolate(FinalValue, LayerValue, Layer.BlendingFactor);
+					break;
+
+				case EMPAS_LayerBlendingMode::Add:
+					FinalValue = TMPAS_Interpolate<T>::Interpolate(FinalValue, TMPAS_Add<T, T, T>::Add(FinalValue, LayerValue), Layer.BlendingFactor);
+					break;
+
+				case EMPAS_LayerBlendingMode::Multiply:
+					FinalValue = TMPAS_Interpolate<T>::Interpolate(FinalValue, TMPAS_Multiply<T, T, T>::Multiply(FinalValue, LayerValue), Layer.BlendingFactor);
+					break;
+
+				default: break;
+				}
+			}
+		}
+
+		return FinalValue;
 	}
 };
 
@@ -437,16 +424,12 @@ struct FMPAS_VectorStack
 	// Actual stack data
 	FMPAS_StackBase<FVector> StackData;
 
-	// Layer access wrappers
-	TArray<FMPAS_VectorLayer> LayerWrappers;
-
 
 	FMPAS_VectorStack(const FName& InName = "") : StackData(InName) {}
 
 	// Adds a layer to the StackData and stores a layer wrapper at the same index
 	int32 AddLayer(const FMPAS_VectorLayer& InLayer)
 	{
-		LayerWrappers.Add(InLayer);
 		return StackData.AddLayer(InLayer.LayerData);
 	}
 
@@ -454,7 +437,6 @@ struct FMPAS_VectorStack
 	bool RemoveLayer(int32 InLayerID)
 	{
 		if (!StackData.RemoveLayer(InLayerID)) return false;
-		LayerWrappers.RemoveAt(InLayerID);
 		return true;
 	}
 
@@ -465,7 +447,7 @@ struct FMPAS_VectorStack
 	const FName& Name() const { return StackData.StackName; }
 
 	// Access to the stack layers
-	FMPAS_VectorLayer& operator[](int32 InLayerID) { check(InLayerID >= 0 && InLayerID < Num()); return LayerWrappers[InLayerID]; }
+	FMPAS_LayerBase<FVector>& operator[](int32 InLayerID) { return StackData[InLayerID]; }
 };
 
 
@@ -542,16 +524,11 @@ struct FMPAS_RotatorStack
 	// Actual stack data
 	FMPAS_StackBase<FRotator> StackData;
 
-	// Layer access wrappers
-	TArray<FMPAS_RotatorLayer> LayerWrappers;
-
-
 	FMPAS_RotatorStack(const FName& InName = "") : StackData(InName) {}
 
 	// Adds a layer to the StackData and stores a layer wrapper at the same index
 	int32 AddLayer(const FMPAS_RotatorLayer& InLayer)
 	{
-		LayerWrappers.Add(InLayer);
 		return StackData.AddLayer(InLayer.LayerData);
 	}
 
@@ -559,7 +536,6 @@ struct FMPAS_RotatorStack
 	bool RemoveLayer(int32 InLayerID)
 	{
 		if (!StackData.RemoveLayer(InLayerID)) return false;
-		LayerWrappers.RemoveAt(InLayerID);
 		return true;
 	}
 
@@ -570,7 +546,7 @@ struct FMPAS_RotatorStack
 	const FName& Name() const { return StackData.StackName; }
 
 	// Access to the stack layers
-	FMPAS_RotatorLayer& operator[](int32 InLayerID) { check(InLayerID >= 0 && InLayerID < Num()); return LayerWrappers[InLayerID]; }
+	FMPAS_LayerBase<FRotator>& operator[](int32 InLayerID) { return StackData[InLayerID]; }
 };
 
 
@@ -608,7 +584,7 @@ public:
 
 	// Calculates resulting value of the layer
 	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "MPAS|StacksAndLayers|VectorStacks")
-	static FVector CalculateLayerInStack_Vector(bool& OutHasActiveElements, UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].LayerData.CalculateLayerValue(OutHasActiveElements); }
+	static FVector CalculateLayerInStack_Vector(bool& OutHasActiveElements, UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].CalculateLayerValue(OutHasActiveElements); }
 
 	// Calculate resulting value of the stack
 	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "MPAS|StacksAndLayers|VectorStacks")
@@ -623,6 +599,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "MPAS|StacksAndLayers|VectorStacks")
 	static bool RemoveLayer_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack.RemoveLayer(InLayerID); }
 
+	// Finds the layer with the specified name exists inside the stack, returns -1 if no layer with such name exists
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|StacksAndLayers|VectorStacks")
+	static int GetLayerIdByName_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, const FName& InLayerName)
+	{
+		for (int32 i = 0; i < InStack.StackData.Layers.Num(); i++)
+			if (InStack.StackData.Layers[i].Name == InLayerName)
+				return i;
+		return -1;
+	}
 
 	// Returns the number of layers in the given stack
 	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "MPAS|StacksAndLayers|VectorStacks")
@@ -639,15 +624,15 @@ public:
 
 	// Sets the value of a source in the given Layer
 	UFUNCTION(BlueprintCallable, Category = "MPAS|StacksAndLayers|VectorStacks")
-	static void SetLayerElementValue_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID, UObject* InSource, FVector InSourceValue) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].LayerData.SetSourceValue(InSource, InSourceValue); }
+	static void SetLayerElementValue_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID, UObject* InSource, FVector InSourceValue) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].SetSourceValue(InSource, InSourceValue); }
 
 	// Removes the value of a source in the given Stack and Layer, if succeded: returns true, false - overwise
 	UFUNCTION(BlueprintCallable, Category = "MPAS|StacksAndLayers|VectorStacks")
-	static bool RemoveLayerElementValue_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID, UObject* InSource) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].LayerData.RemoveSourceValue(InSource); }
+	static bool RemoveLayerElementValue_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID, UObject* InSource) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].RemoveSourceValue(InSource); }
 
 	// Returns the value of a location source in the given Stack and Layer
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|StacksAndLayers|VectorStacks")
-	static const FVector& GetLayerElementValue_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID, UObject* InSource) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].LayerData.GetSourceValue(InSource); }
+	static const FVector& GetLayerElementValue_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID, UObject* InSource) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].GetSourceValue(InSource); }
 	
 	// Returns a map of all layer elements
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|StacksAndLayers|VectorStacks")
@@ -655,7 +640,7 @@ public:
 	{ 
 		TMap<UObject*, FVector> Output;
 
-		for (auto& Element : InStack[InLayerID].LayerData.LayerElements)
+		for (auto& Element : InStack[InLayerID].LayerElements)
 			Output.Add(Element.Key.Get(), Element.Value);
 
 		return Output; 
@@ -664,38 +649,38 @@ public:
 
 	// Enables/Disables the specified layer
 	UFUNCTION(BlueprintCallable, Category = "MPAS|StacksAndLayers|VectorStacks")
-	static void SetLayerEnabled_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID, bool InNewEnabled) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].LayerData.Enabled = InNewEnabled; }
+	static void SetLayerEnabled_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID, bool InNewEnabled) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].Enabled = InNewEnabled; }
 
 	// Whenether the specified layer is enabled or not
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|StacksAndLayers|VectorStacks")
-	static bool GetLayerEnabled_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].LayerData.Enabled; }
+	static bool GetLayerEnabled_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].Enabled; }
 
 
 	// Modifies blending factor of the specified layer
 	UFUNCTION(BlueprintCallable, Category = "MPAS|StacksAndLayers|VectorStacks")
-	static void SetLayerBlendingFactor_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID, float InNewBlendingFactor) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].LayerData.BlendingFactor = InNewBlendingFactor; }
+	static void SetLayerBlendingFactor_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID, float InNewBlendingFactor) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].BlendingFactor = InNewBlendingFactor; }
 
 	// Returns the blending factor of the specified layer
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|StacksAndLayers|VectorStacks")
-	static float GetLayerBlendingFactor_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].LayerData.BlendingFactor; }
+	static float GetLayerBlendingFactor_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].BlendingFactor; }
 
 
 	// Modifies blending mode of the specified layer
 	UFUNCTION(BlueprintCallable, Category = "MPAS|StacksAndLayers|VectorStacks")
-	static void SetLayerBlendingMode_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID, EMPAS_LayerBlendingMode InNewBlendingMode) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].LayerData.BlendingMode = InNewBlendingMode; }
+	static void SetLayerBlendingMode_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID, EMPAS_LayerBlendingMode InNewBlendingMode) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].BlendingMode = InNewBlendingMode; }
 
 	// Returns the blending mode of the specified layer
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|StacksAndLayers|VectorStacks")
-	static EMPAS_LayerBlendingMode GetLayerBlendingMode_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].LayerData.BlendingMode; }
+	static EMPAS_LayerBlendingMode GetLayerBlendingMode_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].BlendingMode; }
 
 
 	// Modifies combination of the specified layer
 	UFUNCTION(BlueprintCallable, Category = "MPAS|StacksAndLayers|VectorStacks")
-	static void SetLayerCombinationMode_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID, EMPAS_LayerCombinationMode InNewCombinationMode) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].LayerData.CombinationMode = InNewCombinationMode; }
+	static void SetLayerCombinationMode_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID, EMPAS_LayerCombinationMode InNewCombinationMode) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].CombinationMode = InNewCombinationMode; }
 
 	// Returns the combination mode of the specified layer
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|StacksAndLayers|VectorStacks")
-	static EMPAS_LayerCombinationMode GetLayerCombinationMode_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].LayerData.CombinationMode; }
+	static EMPAS_LayerCombinationMode GetLayerCombinationMode_Vector(UPARAM(ref) FMPAS_VectorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].CombinationMode; }
 
 
 
@@ -723,7 +708,7 @@ public:
 
 	// Calculates resulting value of the layer
 	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "MPAS|StacksAndLayers|RotatorStacks")
-	static FRotator CalculateLayerInStack_Rotator(bool& OutHasActiveElements, UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].LayerData.CalculateLayerValue(OutHasActiveElements); }
+	static FRotator CalculateLayerInStack_Rotator(bool& OutHasActiveElements, UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].CalculateLayerValue(OutHasActiveElements); }
 
 	// Calculate resulting value of the stack
 	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "MPAS|StacksAndLayers|RotatorStacks")
@@ -737,6 +722,16 @@ public:
 	// Removes a layer from the given stack, return true if successful, false - if not
 	UFUNCTION(BlueprintCallable, Category = "MPAS|StacksAndLayers|RotatorStacks")
 	static bool RemoveLayer_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID) { return InStack.RemoveLayer(InLayerID); }
+
+	// Finds the layer with the specified name exists inside the stack, returns -1 if no layer with such name exists
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|StacksAndLayers|RotatorStacks")
+	static int GetLayerIdByName_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, const FName& InLayerName)
+	{
+		for (int32 i = 0; i < InStack.StackData.Layers.Num(); i++)
+			if (InStack.StackData.Layers[i].Name == InLayerName)
+				return i;
+		return -1;
+	}
 
 
 	// Returns the number of layers in the given stack
@@ -754,15 +749,15 @@ public:
 
 	// Sets the value of a source in the given Layer
 	UFUNCTION(BlueprintCallable, Category = "MPAS|StacksAndLayers|RotatorStacks")
-	static void SetLayerElementValue_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID, UObject* InSource, FRotator InSourceValue) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].LayerData.SetSourceValue(InSource, InSourceValue); }
+	static void SetLayerElementValue_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID, UObject* InSource, FRotator InSourceValue) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].SetSourceValue(InSource, InSourceValue); }
 
 	// Removes the value of a source in the given Stack and Layer, if succeded: returns true, false - overwise
 	UFUNCTION(BlueprintCallable, Category = "MPAS|StacksAndLayers|RotatorStacks")
-	static bool RemoveLayerElementValue_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID, UObject* InSource) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].LayerData.RemoveSourceValue(InSource); }
+	static bool RemoveLayerElementValue_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID, UObject* InSource) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].RemoveSourceValue(InSource); }
 
 	// Returns the value of a location source in the given Stack and Layer
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|StacksAndLayers|RotatorStacks")
-	static const FRotator& GetLayerElementValue_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID, UObject* InSource) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].LayerData.GetSourceValue(InSource); }
+	static const FRotator& GetLayerElementValue_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID, UObject* InSource) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].GetSourceValue(InSource); }
 
 	// Returns a map of all layer elements
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|StacksAndLayers|RotatorStacks")
@@ -770,7 +765,7 @@ public:
 	{
 		TMap<UObject*, FRotator> Output;
 
-		for (auto& Element : InStack[InLayerID].LayerData.LayerElements)
+		for (auto& Element : InStack[InLayerID].LayerElements)
 			Output.Add(Element.Key.Get(), Element.Value);
 
 		return Output;
@@ -779,37 +774,37 @@ public:
 
 	// Enables/Disables the specified layer
 	UFUNCTION(BlueprintCallable, Category = "MPAS|StacksAndLayers|RotatorStacks")
-	static void SetLayerEnabled_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID, bool InNewEnabled) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].LayerData.Enabled = InNewEnabled; }
+	static void SetLayerEnabled_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID, bool InNewEnabled) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].Enabled = InNewEnabled; }
 
 	// Whenther the specified layer is enabled or not
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|StacksAndLayers|RotatorStacks")
-	static bool GetLayerEnabled_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].LayerData.Enabled; }
+	static bool GetLayerEnabled_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].Enabled; }
 
 
 	// Modifies blending factor of the specified layer
 	UFUNCTION(BlueprintCallable, Category = "MPAS|StacksAndLayers|RotatorStacks")
-	static void SetLayerBlendingFactor_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID, float InNewBlendingFactor) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].LayerData.BlendingFactor = InNewBlendingFactor; }
+	static void SetLayerBlendingFactor_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID, float InNewBlendingFactor) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].BlendingFactor = InNewBlendingFactor; }
 
 	// Returns the blending factor of the specified layer is enabled or not
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|StacksAndLayers|RotatorStacks")
-	static float GetLayerBlendingFactor_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].LayerData.BlendingFactor; }
+	static float GetLayerBlendingFactor_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].BlendingFactor; }
 
 
 	// Modifies blending mode of the specified layer
 	UFUNCTION(BlueprintCallable, Category = "MPAS|StacksAndLayers|RotatorStacks")
-	static void SetLayerBlendingMode_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID, EMPAS_LayerBlendingMode InNewBlendingMode) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].LayerData.BlendingMode = InNewBlendingMode; }
+	static void SetLayerBlendingMode_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID, EMPAS_LayerBlendingMode InNewBlendingMode) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].BlendingMode = InNewBlendingMode; }
 
 	// Returns the blending mode of the specified layer
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|StacksAndLayers|RotatorStacks")
-	static EMPAS_LayerBlendingMode GetLayerBlendingMode_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].LayerData.BlendingMode; }
+	static EMPAS_LayerBlendingMode GetLayerBlendingMode_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].BlendingMode; }
 
 
 	// Modifies combination of the specified layer
 	UFUNCTION(BlueprintCallable, Category = "MPAS|StacksAndLayers|RotatorStacks")
-	static void SetLayerCombinationMode_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID, EMPAS_LayerCombinationMode InNewCombinationMode) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].LayerData.CombinationMode = InNewCombinationMode; }
+	static void SetLayerCombinationMode_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID, EMPAS_LayerCombinationMode InNewCombinationMode) { check(InLayerID >= 0 && InLayerID < InStack.Num()); InStack[InLayerID].CombinationMode = InNewCombinationMode; }
 
 	// Returns the combination mode of the specified layer
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|StacksAndLayers|RotatorStacks")
-	static EMPAS_LayerCombinationMode GetLayerCombinationMode_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].LayerData.CombinationMode; }
+	static EMPAS_LayerCombinationMode GetLayerCombinationMode_Rotator(UPARAM(ref) FMPAS_RotatorStack& InStack, int32 InLayerID) { check(InLayerID >= 0 && InLayerID < InStack.Num()); return InStack[InLayerID].CombinationMode; }
 
 };

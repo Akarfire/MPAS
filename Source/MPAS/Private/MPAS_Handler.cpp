@@ -26,6 +26,8 @@ void UMPAS_Handler::BeginPlay()
 {
 	Super::BeginPlay();
 
+	PreSetupDelegate.Broadcast();
+
 	// Locates or creates a new timer controller
 	InitTimerController();
 

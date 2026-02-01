@@ -252,13 +252,7 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|Debug|VectorStacks")
 	const TArray<int32>& DEBUG_GetVectorStackExecutionOrder(int32 InVectorStackID) { return VectorStacks[InVectorStackID].StackData.StackOrder; }
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|VectorStacks")
-	const FMPAS_VectorLayer& DEBUG_GetVectorLayer(int32 InVectorStackID, int32 InVectorLayerID) { return VectorStacks[InVectorStackID][InVectorLayerID]; }
-
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|RigElement|Debug|RotatorStacks")
 	const TArray<int32>& DEBUG_GetRotationStackExecutionOrder(int32 InRotationStackID) { return RotatorStacks[InRotationStackID].StackData.StackOrder; }
-
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|RigElement|Debug|RotatorStacks")
-	const FMPAS_RotatorLayer& DEBUG_GetRotationLayer(int32 InRotationStackID, int32 InRotationLayerID) { return RotatorStacks[InRotationStackID][InRotationLayerID]; }
 };

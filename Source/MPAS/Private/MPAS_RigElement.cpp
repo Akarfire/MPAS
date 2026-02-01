@@ -94,8 +94,8 @@ void UMPAS_RigElement::LinkRigElement(class UMPAS_Handler* InHandler)
 	if (ParentElementName == "Core")
 	{
 		IsCoreElement = true;
-		GetVectorStack(0)[1].LayerData.SetSourceValue(this, GetComponentLocation());
-		GetRotatorStack(0)[1].LayerData.SetSourceValue(this, GetComponentRotation());
+		GetVectorStack(0)[1].SetSourceValue(this, GetComponentLocation());
+		GetRotatorStack(0)[1].SetSourceValue(this, GetComponentRotation());
 	}
 	
 	// If parent is a normal element
@@ -105,8 +105,8 @@ void UMPAS_RigElement::LinkRigElement(class UMPAS_Handler* InHandler)
 
 		// Parent location and rotation initial cache
 		ParentElement = RigData[ParentElementName].RigElement;
-		GetVectorStack(0)[0].LayerData.SetSourceValue(ParentElement, ParentElement->GetComponentLocation());
-		GetRotatorStack(0)[0].LayerData.SetSourceValue(ParentElement, ParentElement->GetComponentRotation());
+		GetVectorStack(0)[0].SetSourceValue(ParentElement, ParentElement->GetComponentLocation());
+		GetRotatorStack(0)[0].SetSourceValue(ParentElement, ParentElement->GetComponentRotation());
 
 		// Self location and rotation fetching
 		
@@ -114,8 +114,8 @@ void UMPAS_RigElement::LinkRigElement(class UMPAS_Handler* InHandler)
 		InitialSelfTransform.SetLocation( UKismetMathLibrary::Quat_UnrotateVector(ParentElement->GetComponentRotation().Quaternion(), GetComponentLocation() - ParentElement->GetComponentLocation()) );
 		InitialSelfTransform.SetRotation( UKismetMathLibrary::NormalizedDeltaRotator(GetComponentRotation(), ParentElement->GetComponentRotation()).Quaternion() );
 
-		GetVectorStack(0)[1].LayerData.SetSourceValue(this, UKismetMathLibrary::Quat_RotateVector(ParentElement->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()));
-		GetRotatorStack(0)[1].LayerData.SetSourceValue(this, FRotator(InitialSelfTransform.GetRotation()));
+		GetVectorStack(0)[1].SetSourceValue(this, UKismetMathLibrary::Quat_RotateVector(ParentElement->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()));
+		GetRotatorStack(0)[1].SetSourceValue(this, FRotator(InitialSelfTransform.GetRotation()));
 	}
 
 	OnLinkRigElement(InHandler);
@@ -145,11 +145,11 @@ void UMPAS_RigElement::UpdateRigElement(float DeltaTime)
 	if (!IsCoreElement)
 	{
 		// Sampling parent transform
-		GetVectorStack(0)[0].LayerData.SetSourceValue(ParentElement, ParentElement->GetComponentLocation());
-		GetRotatorStack(0)[0].LayerData.SetSourceValue(ParentElement, ParentElement->GetComponentRotation());
+		GetVectorStack(0)[0].SetSourceValue(ParentElement, ParentElement->GetComponentLocation());
+		GetRotatorStack(0)[0].SetSourceValue(ParentElement, ParentElement->GetComponentRotation());
 
 		// Updating self location based on new parent rotation
-		GetVectorStack(0)[1].LayerData.SetSourceValue(this, UKismetMathLibrary::Quat_RotateVector(ParentElement->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()));
+		GetVectorStack(0)[1].SetSourceValue(this, UKismetMathLibrary::Quat_RotateVector(ParentElement->GetComponentRotation().Quaternion(), InitialSelfTransform.GetLocation()));
 	}
 
 	// Applying default position stacks

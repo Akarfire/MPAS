@@ -42,7 +42,10 @@ void UMPAS_Crawler::LinkRigElement(UMPAS_Handler* InHandler)
 	ParentOffset = UKismetMathLibrary::Quat_UnrotateVector(ParentElement->GetComponentQuat(), ParentElement->GetComponentLocation() - GetComponentLocation());
 
 	// Regisering crawler effector layer
-	ParentLocationEffectorLayer = ParentElement->RegisterVectorLayer(0, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Average, 0, true, "CrawlersLocationEffector"));
+	ParentLocationEffectorLayer = UStacksAndLayers::GetLayerIdByName_Vector(ParentElement->GetVectorStack(0), "CrawlersLocationEffector");
+	if (ParentLocationEffectorLayer == -1)
+		ParentLocationEffectorLayer = ParentElement->RegisterVectorLayer(0, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Average, 0, true, "CrawlersLocationEffector"));
+	
 	ParentElement->GetVectorStack(0)[ParentLocationEffectorLayer].SetSourceValue(this, GetComponentLocation() + ParentElement->GetComponentRotation().RotateVector(ParentOffset));
 }
 
@@ -71,7 +74,7 @@ bool UMPAS_Crawler::GroundCheck(FHitResult& Hit)
 FVector UMPAS_Crawler::GetTargetLocation()
 {
 	// Basic target location calculation
-	ParentElement->GetVectorStack(TargetLocationStackID)[0].SetSourceValue(this, ParentBody->GetDesiredLocation() + ParentBody->GetDesiredRotation().RotateVector(-1 * ParentOffset));
+	GetVectorStack(TargetLocationStackID)[0].SetSourceValue(this, ParentBody->GetDesiredLocation() + ParentBody->GetDesiredRotation().RotateVector(-1 * ParentOffset));
 	
 	return UStacksAndLayers::CalculateStack_Vector(GetVectorStack(TargetLocationStackID));
 }

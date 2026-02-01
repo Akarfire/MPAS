@@ -96,7 +96,10 @@ void UMPAS_Leg::LinkRigElement(class UMPAS_Handler* InHandler)
 	LegTargetOffset = GetComponentLocation() - ParentElement->GetComponentLocation();
 
 	// Registers the effector layer
-	LegEffectorLayerID = ParentElement->RegisterVectorLayer(0, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Average, EffectorLayerPriority, false, "LegsLocationEffector"));
+
+	LegEffectorLayerID = UStacksAndLayers::GetLayerIdByName_Vector(ParentElement->GetVectorStack(0), "LegsLocationEffector");
+	if (LegEffectorLayerID == -1)
+		LegEffectorLayerID = ParentElement->RegisterVectorLayer(0, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Average, EffectorLayerPriority, false, "LegsLocationEffector"));
 
 	// Get resting pose offset
 	LegRestingPoseOffset = GetComponentLocation() - ParentElement->GetComponentLocation();
