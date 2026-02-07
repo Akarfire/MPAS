@@ -33,7 +33,10 @@ void UMPAS_SplinePositionDriver::ScanSplineControlPoints()
 {
 	if (!Spline) return;
 
-	ControlPoints.Empty();
+	ControlPoints.Reset();
+
+	if (DeriveSplinePointsFromControlPoints)
+		SplinePoints.Reset();
 
 	FVector PreviousPointLocation = GetComponentLocation();
 	FQuat PreviousPointRotation = GetComponentQuat();
@@ -53,6 +56,16 @@ void UMPAS_SplinePositionDriver::ScanSplineControlPoints()
 
 		PreviousPointLocation = Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);
 		PreviousPointRotation = Spline->GetQuaternionAtSplinePoint(i, ESplineCoordinateSpace::World);
+
+		if (DeriveSplinePointsFromControlPoints)
+		{
+			FMPAS_SplinePointData SplinePoint;
+			SplinePoint.PositionMode = EMPAS_SplinePointPositionMode::SplineFraction;
+			SplinePoint.PositionValue = Spline->GetTimeAtDistanceAlongSpline(Spline->GetDistanceAlongSplineAtSplinePoint(i));
+			SplinePoint.AdditiveRotation = FRotator::ZeroRotator;
+
+			SplinePoints.Add(SplinePoint);
+		}
 	}
 }
 
@@ -79,18 +92,14 @@ void UMPAS_SplinePositionDriver::OnPositionDriverInitialized_Implementation()
 	if (!Spline) return; // If there is no spline, then don't continue the initialization
 
 	// Scanning spline control points
-
-	if (Spline)
-	{
-		ScanSplineControlPoints();
-	}
+	ScanSplineControlPoints();
 
 	// Assinging driven elements to spline points
-
 	FVector TempLocation;
 	FRotator TempRotation;
 
-	// To each point we assign the one rig element, that is closest to it
+	// To each point we assign the closest rig element
+	TSet<UMPAS_RigElement*> AssignedElements;
 	for (int i = 0; i < SplinePoints.Num(); i++)
 	{
 		float MinDistance = 10e9f;
@@ -100,6 +109,8 @@ void UMPAS_SplinePositionDriver::OnPositionDriverInitialized_Implementation()
 
 		for (auto Element : DrivenElements)
 		{
+			if (AssignedElements.Contains(Element.Key)) continue;
+
 			float Distance = FVector::Distance(TempLocation, Element.Key->GetComponentLocation());
 			if (Distance < MinDistance && !SplinePointAssignment.Contains(Element.Key))
 			{
@@ -107,7 +118,7 @@ void UMPAS_SplinePositionDriver::OnPositionDriverInitialized_Implementation()
 				ClosestDrivenElement = Element.Key;
 			}
 		}
-
+		AssignedElements.Add(ClosestDrivenElement);
 		SplinePointAssignment.Add(ClosestDrivenElement, i);
 	}
 }
@@ -117,7 +128,7 @@ void UMPAS_SplinePositionDriver::OnPositionDriverInitialized_Implementation()
 void UMPAS_SplinePositionDriver::CalculateElementTransform_Implementation(FVector& OutLocation, FRotator& OutRotation, UMPAS_RigElement* InRigElement)
 {
 	// If this rig element is not driven by this driver
-	if (!DrivenElementsList.Contains(InRigElement) || !Spline)
+	if (!DrivenElementsList.Contains(InRigElement) || !SplinePointAssignment.Contains(InRigElement) || !Spline)
 	{
 		OutLocation = FVector(0, 0, 0);
 		OutRotation = FRotator(0, 0 ,0);
@@ -285,8 +296,23 @@ void UMPAS_SplinePositionDriver::UpdateRigElement(float DeltaTime)
 		{
 			// Caching
 
-			FVector PointLocation = Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);
-			FQuat PointQuat = Spline->GetQuaternionAtSplinePoint(i, ESplineCoordinateSpace::World);
+			FVector PointLocation;
+			FQuat PointQuat;
+
+			if (IgnoreProceduralEffectsDuringShapeDynamicsCalculation)
+			{
+				FVector RawLocationLayerValue = UStacksAndLayers::CalculateLayer_Vector(GetVectorStack(ControlPoints[i].LocationVectorStackID)[0]);
+				Spline->SetLocationAtSplinePoint(i, RawLocationLayerValue, ESplineCoordinateSpace::World);
+
+				PointLocation = Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);
+				PointQuat = UKismetMathLibrary::Quat_Slerp(Spline->GetQuaternionAtSplinePoint(i, ESplineCoordinateSpace::World), GetComponentQuat(), 0.f);
+			}
+			
+			else
+			{
+				PointLocation = Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);
+				PointQuat = Spline->GetQuaternionAtSplinePoint(i, ESplineCoordinateSpace::World);
+			}
 
 			FVector DeformationVector = PointLocation - (PreviousPointLocation + Offset);
 			FVector LocalizedDeformationVector = UKismetMathLibrary::Quat_UnrotateVector(PointQuat, DeformationVector);
@@ -318,7 +344,7 @@ void UMPAS_SplinePositionDriver::UpdateRigElement(float DeltaTime)
 
 			if (abs(VerticalDeformation) > Limitation)
 				ClampedVector += PointQuat.RotateVector(FVector(0, 0, 1) * UKismetMathLibrary::SignOfFloat(VerticalDeformation) * Limitation - FVector(0, 0, 1) * VerticalDeformation);
-			
+
 			// Applying
 			GetVectorStack(ControlPoints[i].LocationVectorStackID)[0].SetSourceValue(Cast<UObject>(this), PreviousPointLocation + Offset + ClampedVector);
 		}
@@ -328,11 +354,27 @@ void UMPAS_SplinePositionDriver::UpdateRigElement(float DeltaTime)
 			// Doing nothing
 		}
 
-		// Applying stack value to the spline point
-		Spline->SetLocationAtSplinePoint(i, UStacksAndLayers::CalculateStack_Vector(GetVectorStack(ControlPoints[i].LocationVectorStackID)), ESplineCoordinateSpace::World);
-
 		// Loop stuff
-		PreviousPointLocation = Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);
-		PreviousPointRotation = UKismetMathLibrary::Quat_Slerp(Spline->GetQuaternionAtSplinePoint(i, ESplineCoordinateSpace::World), GetComponentQuat(), 0.f);
+
+		if (IgnoreProceduralEffectsDuringShapeDynamicsCalculation)
+		{
+			FVector RawLocationLayerValue = UStacksAndLayers::CalculateLayer_Vector(GetVectorStack(ControlPoints[i].LocationVectorStackID)[0]);
+			Spline->SetLocationAtSplinePoint(i, RawLocationLayerValue, ESplineCoordinateSpace::World);
+
+			PreviousPointLocation = Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);
+			PreviousPointRotation = UKismetMathLibrary::Quat_Slerp(Spline->GetQuaternionAtSplinePoint(i, ESplineCoordinateSpace::World), GetComponentQuat(), 0.f);
+
+			// Applying stack value to the spline point
+			Spline->SetLocationAtSplinePoint(i, UStacksAndLayers::CalculateStack_Vector(GetVectorStack(ControlPoints[i].LocationVectorStackID)), ESplineCoordinateSpace::World);
+		}
+
+		else
+		{
+			// Applying stack value to the spline point
+			Spline->SetLocationAtSplinePoint(i, UStacksAndLayers::CalculateStack_Vector(GetVectorStack(ControlPoints[i].LocationVectorStackID)), ESplineCoordinateSpace::World);
+
+			PreviousPointLocation = Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);
+			PreviousPointRotation = UKismetMathLibrary::Quat_Slerp(Spline->GetQuaternionAtSplinePoint(i, ESplineCoordinateSpace::World), GetComponentQuat(), 0.f);
+		}
 	}
 }

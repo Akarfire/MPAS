@@ -32,6 +32,11 @@ public:
 	void OnRigSetupFinished();
 	virtual void OnRigSetupFinished_Implementation() {}
 
+	// Used to refresh configuration of the state machine and it's states (to be overriden)
+	UFUNCTION(BlueprintNativeEvent, Category = "MPAS|Handler|IntentionDriver|IntentionStateMachine")
+	void OnUpdateConfiguration();
+	virtual void OnUpdateConfiguration_Implementation() {}
+
 
 	// Returns the pointer to the associated MPAS handler
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|IntentionDriver|IntentionStateMachine")
@@ -48,6 +53,14 @@ public:
 	// Returns the Active value - a flag, marking whether the handler should update this state machine, no actual effect on the State Machine
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|IntentionDriver|IntentionStateMachine")
 	bool IsActive() { return Active; }
+
+	// CALLED BY THE HANDLER: Called once the rig has finished it's Scanning, Initing and Linking processes
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|IntentionDriver|IntentionStateMachine")
+	void RigSetupFinished();
+
+	// Used to refresh configuration of the state machine and it's states
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|IntentionDriver|IntentionStateMachine")
+	void UpdateConfiguration();
 
 	// CALLED BY THE HANDLER: Links the state machine to the Handler
 	void LinkToHandler(class UMPAS_Handler* InHandler, FName InName) { Handler = InHandler; Name = InName; }

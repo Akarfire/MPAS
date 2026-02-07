@@ -1,14 +1,13 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
-#include "Default/RigElements/MPAS_Crawler.h"
+#include "Default/RigElements/MPAS_SimpleMovement.h"
 #include "Default/RigElements/MPAS_BodySegment.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "MPAS_Handler.h"
 
 
 // CALLED BY THE HANDLER : Initializing Rig Element
-void UMPAS_Crawler::InitRigElement(UMPAS_Handler* InHandler)
+void UMPAS_SimpleMovement::InitRigElement(UMPAS_Handler* InHandler)
 {
 	Super::InitRigElement(InHandler);
 
@@ -30,7 +29,7 @@ void UMPAS_Crawler::InitRigElement(UMPAS_Handler* InHandler)
 }
 
 // CALLED BY THE HANDLER : Contains the logic that links this element with other elements in the rig
-void UMPAS_Crawler::LinkRigElement(UMPAS_Handler* InHandler)
+void UMPAS_SimpleMovement::LinkRigElement(UMPAS_Handler* InHandler)
 {
 	Super::LinkRigElement(InHandler);
 
@@ -42,15 +41,15 @@ void UMPAS_Crawler::LinkRigElement(UMPAS_Handler* InHandler)
 	ParentOffset = UKismetMathLibrary::Quat_UnrotateVector(ParentElement->GetComponentQuat(), ParentElement->GetComponentLocation() - GetComponentLocation());
 
 	// Regisering crawler effector layer
-	ParentLocationEffectorLayer = UStacksAndLayers::GetLayerIdByName_Vector(ParentElement->GetVectorStack(0), "CrawlersLocationEffector");
+	ParentLocationEffectorLayer = UStacksAndLayers::GetLayerIdByName_Vector(ParentElement->GetVectorStack(0), "SimpleMovementLocationEffector");
 	if (ParentLocationEffectorLayer == -1)
-		ParentLocationEffectorLayer = ParentElement->RegisterVectorLayer(0, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Average, 0, true, "CrawlersLocationEffector"));
+		ParentLocationEffectorLayer = ParentElement->RegisterVectorLayer(0, FMPAS_VectorLayer(EMPAS_LayerBlendingMode::Normal, 1.f, EMPAS_LayerCombinationMode::Average, 0, true, "SimpleMovementLocationEffector"));
 	
 	ParentElement->GetVectorStack(0)[ParentLocationEffectorLayer].SetSourceValue(this, GetComponentLocation() + ParentElement->GetComponentRotation().RotateVector(ParentOffset));
 }
 
 // CALLED BY THE HANDLER : Updating Rig Element every tick
-void UMPAS_Crawler::UpdateRigElement(float DeltaTime)
+void UMPAS_SimpleMovement::UpdateRigElement(float DeltaTime)
 {
 	Super::UpdateRigElement(DeltaTime);
 
@@ -62,16 +61,8 @@ void UMPAS_Crawler::UpdateRigElement(float DeltaTime)
 	UpdateParentEffector(DeltaTime);
 }
 
-
-// Checks if there is ground under the crawler
-bool UMPAS_Crawler::GroundCheck(FHitResult& Hit)
-{
-	return GetWorld()->LineTraceSingleByChannel(Hit, GetComponentLocation(), GetComponentLocation() - GetUpVector() * GroundCheckDistance, GroundCheckCollisionChannel);
-}
-
-
 // Returns the location, that the crawler is supposed to assume
-FVector UMPAS_Crawler::GetTargetLocation()
+FVector UMPAS_SimpleMovement::GetTargetLocation()
 {
 	// Basic target location calculation
 	GetVectorStack(TargetLocationStackID)[0].SetSourceValue(this, ParentBody->GetDesiredLocation() + ParentBody->GetDesiredRotation().RotateVector(-1 * ParentOffset));
@@ -80,90 +71,15 @@ FVector UMPAS_Crawler::GetTargetLocation()
 }
 
 // Per-frame movement logic of the crawler
-void UMPAS_Crawler::UpdateMovement(float DeltaTime)
+void UMPAS_SimpleMovement::UpdateMovement(float DeltaTime)
 {
-	// Check for ground underneath the crawler
-	FHitResult GroundHit;
-	IsGrounded = GroundCheck(GroundHit);
-
-	if (IsGrounded)
-	{
-		// Ground movement logic
-
-		FVector TargetLocation = GetTargetLocation();
-
-		// Current speed and movement direction
-		float Speed = MovementVelocity.Size() + 0.0001f;
-		FVector VelocityDirection = MovementVelocity / Speed;
-
-		// Movement vector calculations
-		FVector DeltaVector = (TargetLocation - GetComponentLocation());
-
-		float MovementDistance = DeltaVector.Size() + 0.0001f;
-		FVector MovementDirection = DeltaVector / MovementDistance;
-
-		// Friction force for breaking implementation
-		float ResultingFriction = GroundFriction;
-
-		// Actual movement
-		// Only move if delta location is larger than some trigger value
-		if (MovementDistance > MovementTriggerDistance)
-		{
-			float CurrentTimeToTarget = 0;
-
-			// Solving Current time to target equation
-
-			float D = Speed * Speed - 4 * GroundFriction * MovementDistance;
-
-			if (D < 0) CurrentTimeToTarget = 1e20;
-			else CurrentTimeToTarget = UKismetMathLibrary::FMin(Speed - sqrt(D), Speed + sqrt(D)) / (2 * GroundFriction);
-
-			// Finding breaking time
-			// Time until velocity reaches zero just from the ground friction effect
-			float CurrentTimeToFrictionBreak = Speed / GroundFriction;
-
-			// Making decisions based on the calculated times
-
-			// Accelerate only if current time to target exeeds breaking time
-			if (CurrentTimeToTarget > CurrentTimeToFrictionBreak)
-			{
-				float RequiredAcceleration = Acceleration;
-
-				MovementVelocity += MovementDirection * RequiredAcceleration * DeltaTime;
-			}
-
-			else
-			{
-				MovementVelocity -= MovementDirection * Acceleration * DeltaTime;
-				ResultingFriction += BreakingFriction;
-			}
-		}
-
-		// Breaking
-		else if (Speed > 0) { ResultingFriction += BreakingFriction; }
-
-		// Friction
-		VelocityDirection = MovementVelocity.GetSafeNormal();
-
-		MovementVelocity += -1 * VelocityDirection * ResultingFriction * DeltaTime;
-		if (FVector::DotProduct(VelocityDirection, MovementVelocity.GetSafeNormal()) < 0) MovementVelocity = FVector::ZeroVector;
-
-		// Velocity clamping
-		Speed = MovementVelocity.Size() + 0.0001f;
-		VelocityDirection = MovementVelocity / Speed;
-
-		if (Speed > MaxSpeed)
-			MovementVelocity = VelocityDirection * MaxSpeed;
-	}
-
-
 	// Updating element's location layer value
-	FVector NewLocation = GetVectorStack(0)[SelfAbsoluteLocationLayer].GetSourceValue(this) + MovementVelocity;
+	FVector NewLocation = UKismetMathLibrary::VInterpTo(GetVectorStack(0)[SelfAbsoluteLocationLayer].GetSourceValue(this), GetTargetLocation(), DeltaTime, InterpolationSpeed);
 	GetVectorStack(0)[SelfAbsoluteLocationLayer].SetSourceValue(this, NewLocation);
 }
 
 // Updates effector on the parent element's location
-void UMPAS_Crawler::UpdateParentEffector(float DeltaTime)
+void UMPAS_SimpleMovement::UpdateParentEffector(float DeltaTime)
 {
 	if (!ParentElement) return;
 
@@ -178,7 +94,7 @@ void UMPAS_Crawler::UpdateParentEffector(float DeltaTime)
 
 
 // CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
-void UMPAS_Crawler::SyncToFetchedBoneTransforms(float DeltaTime)
+void UMPAS_SimpleMovement::SyncToFetchedBoneTransforms(float DeltaTime)
 {
 	const FTransform* FetchedBoneTransform = GetHandler()->GetCachedFetchedBoneTransforms().Find(BoneName);
 	if (FetchedBoneTransform)

@@ -25,8 +25,8 @@ public class MPAS : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Core",
-				"ScarletStateMachines",
+				"Core", "CoreUObject", "Engine", "InputCore", "AnimGraph", "AnimGraphRuntime", "BlueprintGraph",
+                "ScarletStateMachines",
                 "Scarlet_TimersAndTimelines"
 				// ... add other public dependencies that you statically link with here ...
 			}
@@ -40,6 +40,7 @@ public class MPAS : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
+                "AnimGraph", "AnimGraphRuntime", "BlueprintGraph"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

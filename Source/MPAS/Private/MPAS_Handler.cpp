@@ -182,7 +182,10 @@ void UMPAS_Handler::PostLinkSetupRig()
 void UMPAS_Handler::OnRigSetupComplete()
 {
 	for (auto& IntentionDriver : IntentionStateMachines)
-		IntentionDriver.Value->OnRigSetupFinished();
+	{
+		IntentionDriver.Value->RigSetupFinished();
+		IntentionDriver.Value->UpdateConfiguration(); // Automatically updating configuration during setup (for convinience)
+	}
 }
 
 
@@ -251,12 +254,14 @@ void UMPAS_Handler::SetBoneScale(FName InBone, FVector InScale)
 }
 
 // Returns data about single bone transform
-FTransform UMPAS_Handler::GetSingleBoneTransform(FName InBone)
+bool UMPAS_Handler::GetSingleBoneTransform(FTransform& OutTransform, FName InBone)
 {
-	if (!BoneTransforms.Contains(InBone))
-		return FTransform();
+	FTransform* BoneTransformP = BoneTransforms.Find(InBone);
+	if (!BoneTransformP)
+		return false;
 
-	return BoneTransforms[InBone];
+	OutTransform = *BoneTransformP;
+	return true;
 }
 
 

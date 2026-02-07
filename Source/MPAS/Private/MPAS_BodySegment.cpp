@@ -43,16 +43,6 @@ void UMPAS_BodySegment::UpdateRigElement(float DeltaTime)
 {
     Super::UpdateRigElement(DeltaTime);
 
-    // Calculating Applied Bone Transform
-    if (BoneName != FName())
-    {
-        FTransform BoneTransform = GetComponentTransform();
-
-        BoneTransform.SetRotation(BoneTransform.GetRotation() * AdditionalBoneRotation.Quaternion());
-
-        Handler->SetBoneTransform(BoneName, BoneTransform);
-    }
-
     // Processing UseCoreRotation option
     if (UseCoreRotation)
     {
@@ -92,6 +82,16 @@ void UMPAS_BodySegment::UpdateRigElement(float DeltaTime)
 
         // Rotation enforcement
         SetWorldRotation(UKismetMathLibrary::RLerp(GetComponentRotation(), CachedDesiredRotation, DesiredRotationEnforcement, true));
+    }
+
+    // Calculating Applied Bone Transform
+    if (BoneName != NAME_None)
+    {
+        FTransform BoneTransform = GetComponentTransform();
+
+        BoneTransform.SetRotation(BoneTransform.GetRotation() * AdditionalBoneRotation.Quaternion());
+
+        Handler->SetBoneTransform(BoneName, BoneTransform);
     }
 }
 

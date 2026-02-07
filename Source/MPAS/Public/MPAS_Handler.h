@@ -212,9 +212,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|Handler|BoneBuffer")
 	const TMap<FName, FTransform>& GetBoneTransforms() { return BoneTransforms; }
 
+
 	// Returns data about single bone transform
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|Handler|BoneBuffer")
-	FTransform GetSingleBoneTransform(FName InBone);
+	bool GetSingleBoneTransform(FTransform& OutTransform, FName InBone);
 
 
 
@@ -381,6 +382,89 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|Input")
 	FRotator GetInputTargetRotation() { return InputTargetRotation; }
 
+protected:
+
+	UPROPERTY()
+	TMap<FName, bool> BoolInputStorage = { {"Default", false} };
+
+	UPROPERTY()
+	TMap<FName, int32> IntInputStorage = { {"Default", 0} };
+
+	UPROPERTY()
+	TMap<FName, float> FloatInputStorage = { {"Default", 0.f} };
+
+	UPROPERTY()
+	TMap<FName, FVector> VectorInputStorage = { {"Default", FVector::ZeroVector} };
+
+	UPROPERTY()
+	TMap<FName, FRotator> RotatorInputStorage = { {"Default", FRotator::ZeroRotator} };
+
+protected:
+
+	// Sets <T> Input in given Map:
+	template< typename T >
+	void SetInputValue(TMap<FName, T>& InputStorage, const FName& InputName, const T& Value)
+	{
+		InputStorage.Add(InputName, Value);
+	}
+
+	// Gets <T> Input from given Map
+	template< typename T >
+	const T& GetInputValue(TMap<FName, T>& InputStorage, const FName& InputName)
+	{
+		T* ValueP = InputStorage.Find(InputName);
+		if (ValueP)
+			return *ValueP;
+
+		return InputStorage["Default"];
+	}
+
+public:
+
+	// Sets a bool-type input value
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|Input")
+	void SetBoolInputValue(const FName& InInputName, bool InValue) { SetInputValue<bool>(BoolInputStorage, InInputName, InValue); }
+
+	// Returns a bool-type input value (returns default value if no such input is found)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|Input")
+	bool GetBoolInputValue(const FName& InInputName) { return GetInputValue<bool>(BoolInputStorage, InInputName); }
+
+
+	// Sets a Int-type input value
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|Input")
+	void SetIntInputValue(const FName& InInputName, int32 InValue) { SetInputValue<int32>(IntInputStorage, InInputName, InValue); }
+
+	// Returns a Int-type input value (returns default value if no such input is found)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|Input")
+	int32 GetIntInputValue(const FName& InInputName) { return GetInputValue<int32>(IntInputStorage, InInputName); }
+
+
+	// Sets a Float-type input value
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|Input")
+	void SetFloatInputValue(const FName& InInputName, float InValue) { SetInputValue<float>(FloatInputStorage, InInputName, InValue); }
+
+	// Returns a Float-type input value (returns default value if no such input is found)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|Input")
+	float GetFloatInputValue(const FName& InInputName) { return GetInputValue<float>(FloatInputStorage, InInputName); }
+
+
+	// Sets a Vector-type input value
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|Input")
+	void SetVectorInputValue(const FName& InInputName, const FVector& InValue) { SetInputValue<FVector>(VectorInputStorage, InInputName, InValue); }
+
+	// Returns a Vector-type input value (returns default value if no such input is found)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|Input")
+	FVector GetVectorInputValue(const FName& InInputName) { return GetInputValue<FVector>(VectorInputStorage, InInputName); }
+
+
+	// Sets a Rotator-type input value
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|Input")
+	void SetRotatorInputValue(const FName& InInputName, const FRotator& InValue) { SetInputValue<FRotator>(RotatorInputStorage, InInputName, InValue); }
+
+	// Returns a Rotator-type input value (returns default value if no such input is found)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|Input")
+	FRotator GetRotatorInputValue(const FName& InInputName) { return GetInputValue<FRotator>(RotatorInputStorage, InInputName); }
+
 
 
 // CUSTOM PARAMETERS
@@ -398,11 +482,15 @@ protected:
 
 	// Float Parameters Storage
 	UPROPERTY()
-	TMap<FName,float> FloatParameters = { {"Default", 0} };;
+	TMap<FName,float> FloatParameters = { {"Default", 0} };
 
 	// Vector Parameters Storage
 	UPROPERTY()
-	TMap<FName, FVector> VectorParameters = { {"Default", FVector()} };;
+	TMap<FName, FVector> VectorParameters = { {"Default", FVector()} };
+
+	// Rotator Parameters Storage
+	UPROPERTY()
+	TMap<FName, FRotator> RotatorParameters = { {"Default", FRotator()} };
 
 
 
@@ -484,6 +572,21 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="MPAS|Handler|CustomParameters")
 	bool IsVectorParameterValid(FName ParameterName) { return VectorParameters.Contains(ParameterName); }
+
+
+	// FROTATOR Parameters
+
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|CustomParameters")
+	void CreateRotatorParameter(FName ParameterName, FRotator DefaultValue) { RotatorParameters.Add(ParameterName, DefaultValue); OnParameterUpdated(ParameterName); }
+
+	UFUNCTION(BlueprintCallable, Category = "MPAS|Handler|CustomParameters")
+	void SetRotatorParameter(FName ParameterName, FRotator Value) { SetParameterValue<FRotator>(RotatorParameters, ParameterName, Value); }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|CustomParameters")
+	FRotator GetRotatorParameter(FName ParameterName) { return GetParameterValue<FRotator>(RotatorParameters, ParameterName); }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Handler|CustomParameters")
+	bool IsRotatorParameterValid(FName ParameterName) { return RotatorParameters.Contains(ParameterName); }
 
 
 

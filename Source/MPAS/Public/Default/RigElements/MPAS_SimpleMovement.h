@@ -1,0 +1,141 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Default/RigElements/MPAS_MotionRigElement.h"
+#include "MPAS_SimpleMovement.generated.h"
+
+/**
+ * 
+ */
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+class MPAS_API UMPAS_SimpleMovement : public UMPAS_MotionRigElement
+{
+	GENERATED_BODY()
+
+protected:
+
+	// ID of a layer inside of the default location stack, that is responsible for the crawler's world location
+	int32 SelfAbsoluteLocationLayer;
+
+	// ID of a layer inside of the parent element's default location stack, that is responsible for applying crawler's location to the parent element
+	int32 ParentLocationEffectorLayer;
+
+	int32 TargetLocationStackID;
+
+	int32 EffectorShiftStackID;
+
+	// Default offset of the parent element, relative to the crawler
+	FVector ParentOffset;
+
+	// Offset that is added to the parent offse
+	// This value is interpolated, target value is calculated in Effector Shift vector Stack
+	FVector RealEffectorShift;
+
+	// Pointer to a parent body segment (or nullptr if parent is not UMPAS_BodySegment)
+	class UMPAS_BodySegment* ParentBody;
+
+
+public:
+	UMPAS_SimpleMovement() {}
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|Movement")
+	float InterpolationSpeed = 100.f;
+
+	// Effector location shift minimal limitation
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|ParentPlacement")
+	FVector EffectorShift_Min = FVector(-100, -100, -50);
+
+	// Effector location shift maximal limitation
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|ParentPlacement")
+	FVector EffectorShift_Max = FVector(100, 100, 200);
+
+	// How fast the crawler responds to changes in Effector Shift
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|ParentPlacement")
+	float EffectorShiftInterpolationSpeed = 10.f;
+
+
+protected:
+
+	// Returns the location, that the crawler is supposed to assume
+	FVector GetTargetLocation();
+
+	// Per-frame movement logic of the crawler
+	void UpdateMovement(float DeltaTime);
+
+	// Updates effector on the parent element's location
+	void UpdateParentEffector(float DeltaTime);
+
+
+public:
+
+	// Returns id of a vector stack, where the target location is calculated
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Elements|SimpleMovement")
+	int32 GetTargetLocationStackID() { return TargetLocationStackID; }
+
+	// Returns ID of a vector stack, where effector shift is calculated
+	// Effector shift is the offset, that is added to the crawler's location before finding the average of all crawlers
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MPAS|Elements|SimpleMovement")
+	int32 GetEffectorShiftStackID() { return EffectorShiftStackID; }
+
+
+// BONE TRANSFORM SYNCING
+protected:
+
+	// Bone Transform Syncing
+	int32 BoneTransformSync_LocationLayerID;
+	int32 BoneTransformSync_RotationLayerID;
+
+	// Counts time after the latest change in fetched bone transform deltas before offset realocation shall start
+	float BoneTransformSync_Timer;
+
+	FVector BoneTransformSync_AppliedBoneLocationOffset = FVector::ZeroVector;
+	FQuat BoneTransformSync_AppliedBoneAngularOffset = FQuat::Identity;
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	FName BoneName = FName();
+
+	// Priority of "BoneTransformSync" layers in default location and default rotation stacks
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	int32 BoneTransformSyncingLayerPriority = 1;
+
+
+	// Mimiimal fetched transform location delta size that is considered "modifed"
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	float BoneTransformSync_LocationDeltaSensitivityThreshold = 2.f;
+
+	// Mimiimal fetched transform rotation delta size that is considered "modifed"
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	float BoneTransformSync_AngularDeltaSensitivityThreshold = 1.f;
+
+	// The ammount of time that needs to pass after the latest change in fetched bone transform deltas before offset realocation will start
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	float BoneTransformSync_Timeout = 1.f;
+
+	// How fast applied bone transform offsets will be transfered into bone trasnform sync layer during offset realocation 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	float BoneTransformSync_OffsetLocationRealocationSpeed = 10.f;
+
+	// How fast applied bone transform offsets will be transfered into bone trasnform sync layer during offset realocation 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|BoneTransformSync")
+	float BoneTransformSync_OffsetAngularRealocationSpeed = 10.f;
+
+
+
+// CALLED BY THE HANDLER
+public:
+	// Initializing Rig Element
+	virtual void InitRigElement(class UMPAS_Handler* InHandler) override;
+
+	// CALLED BY THE HANDLER : Contains the logic that links this element with other elements in the rig
+	virtual void LinkRigElement(class UMPAS_Handler* InHandler) override;
+
+	// Updating Rig Element every tick
+	virtual void UpdateRigElement(float DeltaTime) override;
+
+	// CALLED BY THE HANDLER : Synchronizes Rig Element to the most recently fetched bone transforms
+	virtual void SyncToFetchedBoneTransforms(float DeltaTime) override;
+};

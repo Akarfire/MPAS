@@ -100,6 +100,10 @@ public:
 
 	// Defines points, driven elements are going to attach to
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|SplinePositionDriver")
+	bool DeriveSplinePointsFromControlPoints = true;
+
+	// Defines points, driven elements are going to attach to
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|SplinePositionDriver")
 	TArray<FMPAS_SplinePointData> SplinePoints;
 
 	// Default control point configuration
@@ -109,6 +113,10 @@ public:
 	// Per point override for control points (APPLIED ONCE, USE FUNCTIONS TO CHANGE IN RUNTIME)
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|SplinePositionDriver")
 	TMap<int32, FMPAS_ControlPointData> ControlPointPositionModeOverrides;
+
+	// Recalculates spline shape as if no procedural effects are applied to it. Effects are applied on top of the calculated shape
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Default|SplinePositionDriver|Advanced")
+	bool IgnoreProceduralEffectsDuringShapeDynamicsCalculation = false;
 
 
 protected:
@@ -131,6 +139,10 @@ public:
 
 
 	// INTENTION DRIVING
+
+	// Returns the number of control points
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = Category = "MPAS|Elements|PositionDriver|Spline")
+	int32 GetNumberOfControlPoints() { return ControlPoints.Num(); }
 
 	// Returns control point's configuration data (Control Points - Points that define the shape of the spline)
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = Category = "MPAS|Elements|PositionDriver|Spline")

@@ -15,3 +15,8 @@ void UMPAS_IntentionStateBase::STATEMACHINE_OnSetStateMachine_Implementation()
         Handler = IntentionSM->GetHandler();
     }
 }
+
+void UMPAS_IntentionStateBase::UpdateConfiguration()
+{
+    OnUpdateConfiguration();
+}
